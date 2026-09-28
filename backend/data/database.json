@@ -1,0 +1,53 @@
+{
+  "users": [
+    {
+      "id": "USR-ADMIN-001",
+      "name": "System Administrator",
+      "email": "admin@ead.edu",
+      "username": "admin",
+      "passwordHash": "$2a$10$NooUInZ.OX2fNcqGe66MV.Dz23C1shVwo6gB3piA7/fspN.6sLjxq",
+      "role": "admin",
+      "status": "Active"
+    },
+    {
+      "id": "USR-TEACHER-001",
+      "name": "Dr. Ahmed Khan",
+      "email": "teacher@ead.edu",
+      "username": "teacher",
+      "passwordHash": "$2a$10$qUXNxYXMBQMS0UpCohThLOQdcDwqJr8OZTAkthPRML1GPt7Y4KUNu",
+      "role": "teacher",
+      "status": "Active"
+    },
+    {
+      "id": "USR-STUDENT-001",
+      "name": "Ali Raza",
+      "email": "student@ead.edu",
+      "username": "student",
+      "passwordHash": "$2a$10$oqZfO1xYnUwqWfYVx6yF7utRJ4KjpiaOj4KK9UOellh0ohJ7IIm7m",
+      "role": "student",
+      "status": "Active",
+      "passkeys": []
+    }
+  ],
+  "students": [],
+  "teachers": [],
+  "departments": [],
+  "programs": [],
+  "subjects": [],
+  "classes": [],
+  "timetable": [],
+  "attendance": [],
+  "assignments": [],
+  "submissions": [],
+  "exams": [],
+  "results": [],
+  "fees": [],
+  "announcements": [],
+  "messages": [],
+  "notifications": [],
+  "settings": {
+    "universityName": "EAD UNIVERSITY",
+    "attendanceWarning": 75,
+    "academicYear": "2026-27"
+  }
+}

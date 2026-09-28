@@ -1,0 +1,28 @@
+{
+	"folders": [
+		{
+			"path": "admin"
+		},
+		{
+			"path": "assets"
+		},
+		{
+			"path": "backend"
+		},
+		{
+			"path": "css"
+		},
+		{
+			"path": "js"
+		},
+		{
+			"path": "student"
+		},
+		{
+			"path": "supabase"
+		},
+		{
+			"path": "teacher"
+		}
+	]
+}

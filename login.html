@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0B1F3A">
+  <title>Sign In — EAD University Schedule Sender</title>
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    :root{--navy:#0B1F3A;--blue:#2563A6;--soft-blue:#EAF3FB;--teal:#2A9D8F;--surface:#F4F7FA;--ink:#14213D;--muted:#6B7280;--line:#D7E0EA;--white:#fff}
+    *{box-sizing:border-box}.auth-shell{min-height:100svh;background:var(--surface);display:grid;grid-template-columns:minmax(0,52%) minmax(0,48%);overflow:hidden;font-family:Inter,Manrope,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink)}
+    .auth-promo{grid-column:1;grid-row:1;position:relative;min-height:100svh;padding:72px clamp(32px,7vw,98px);display:flex;flex-direction:column;justify-content:center;background:radial-gradient(600px 480px at -5% -4%,rgba(42,157,143,.48),transparent 58%),radial-gradient(440px 420px at 78% 36%,rgba(37,99,166,.16),transparent 68%),var(--navy);border-radius:0 0 84px 0;overflow:hidden;color:#fff}
+    .promo-inner{position:relative;z-index:2;max-width:650px}.university-logo{width:116px;height:116px;background:#fff;border-radius:22px;display:grid;place-items:center;color:var(--navy);box-shadow:0 18px 42px rgba(0,0,0,.22);margin-bottom:42px}.logo-mark{display:grid;place-items:center;line-height:1;text-align:center;font-weight:900;letter-spacing:-2px}.logo-mark .cap{font-size:22px;color:var(--blue);transform:translateY(6px)}.logo-mark .ead{font-size:39px}.logo-mark small{display:block;font-size:10px;letter-spacing:2px;margin-top:3px;color:#44536b}
+    .auth-promo h1{font-size:clamp(46px,5vw,76px);line-height:1.04;letter-spacing:-.055em;margin:0 0 25px;font-weight:800}.auth-promo h1 span{display:block;background:linear-gradient(90deg,#55c4b9,#2A9D8F,#6ac8d4);-webkit-background-clip:text;background-clip:text;color:transparent}.promo-description{font-size:clamp(18px,1.55vw,23px);line-height:1.52;color:rgba(255,255,255,.78);max-width:620px;margin:0 0 30px}.feature-list{list-style:none;padding:0;margin:0;display:grid;gap:19px}.feature-list li{display:flex;align-items:center;gap:15px;font-size:clamp(16px,1.35vw,21px);color:rgba(255,255,255,.88)}.check{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:rgba(42,157,143,.92);font-size:15px;flex:0 0 auto;box-shadow:0 5px 15px rgba(42,157,143,.2)}
+    .campus-art{position:absolute;left:-2%;right:-3%;bottom:-2px;height:260px;opacity:.3;z-index:1}.campus-art svg{width:100%;height:100%}
+    .auth-panel{grid-column:2;grid-row:1;display:flex;align-items:center;justify-content:center;padding:34px clamp(20px,5vw,72px);background:#fff}.auth-content{width:min(100%,475px);display:flex;flex-direction:column;gap:28px}.signin-card{background:rgba(255,255,255,.96);border:1px solid rgba(215,224,234,.9);border-radius:24px;padding:clamp(28px,4vw,42px);box-shadow:0 24px 60px rgba(11,31,58,.12);backdrop-filter:blur(8px)}
+    .card-brand{display:flex;justify-content:center;align-items:center;gap:14px;margin-bottom:27px}.mini-logo{width:58px;height:58px;border-radius:16px;background:var(--soft-blue);display:grid;place-items:center;color:var(--blue);font-weight:900;font-size:18px;border:1px solid #d8e8f6}.brand-title{font-weight:800;font-size:25px;letter-spacing:-.03em}.brand-subtitle{font-size:14px;color:var(--muted);margin-top:2px}.eyebrow{text-align:center;font-size:12px;font-weight:800;letter-spacing:.13em;color:#315887;margin:0 0 9px}.signin-card h2{text-align:center;font-size:31px;letter-spacing:-.04em;margin:0 0 8px}.intro{text-align:center;line-height:1.5;color:var(--muted);margin:0 auto 25px;max-width:350px}.login-error{display:none;background:#fff0ef;border:1px solid #f2c5c0;color:#9d2d27;border-radius:12px;padding:11px 13px;margin:0 0 15px;font-size:14px}.field{margin:16px 0}.field label{display:block;font-size:12px;font-weight:800;letter-spacing:.05em;color:#435069;margin-bottom:8px}.input-wrap{position:relative}.input-icon{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:19px;height:19px;color:#6b7b8f}.auth-input{width:100%;height:53px;border:1px solid var(--line);border-radius:12px;background:#fbfcfe;color:var(--ink);font:inherit;font-size:16px;padding:0 46px 0 46px;outline:none;transition:.2s box-shadow,.2s border-color}.auth-input:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(37,99,166,.12);background:#fff}.auth-input::placeholder{color:#98a3b3}.toggle-password{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:36px;height:36px;border:0;background:transparent;border-radius:9px;color:#607086;cursor:pointer;font-size:17px}.toggle-password:hover{background:var(--soft-blue);color:var(--blue)}.selected-role{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 18px;padding:9px 12px;border-radius:11px;background:var(--soft-blue);color:#315887;font-size:13px}.selected-role b{color:var(--navy)}.signin-btn{width:100%;height:53px;border:0;border-radius:12px;background:linear-gradient(135deg,#2d6fb3,#2563A6);color:#fff;font:inherit;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 10px 20px rgba(37,99,166,.2);transition:transform .2s,filter .2s,box-shadow .2s}.signin-btn:hover{filter:brightness(.93);transform:translateY(-1px);box-shadow:0 13px 25px rgba(37,99,166,.27)}.signin-btn:disabled{opacity:.75;cursor:wait;transform:none}.forgot{display:block;text-align:center;color:#315887;background:none;border:0;margin:13px auto 0;padding:6px;cursor:pointer;font:inherit;font-size:14px}.forgot:hover{text-decoration:underline}.secured{display:flex;align-items:center;justify-content:center;gap:9px;color:#647184;font-size:14px;margin-top:20px}.shield{color:var(--teal);font-size:18px}
+    .demo-section{width:100%}.demo-title{display:flex;align-items:center;gap:13px;color:#315887;font-size:12px;letter-spacing:.12em;font-weight:800;justify-content:center;margin-bottom:12px}.demo-title:before,.demo-title:after{content:"";height:1px;background:#ccd7e3;flex:1}.demo-accounts{display:grid;gap:8px}.demo-account{width:100%;display:grid;grid-template-columns:42px 1fr 20px;align-items:center;gap:10px;text-align:left;border:1px solid #d5dfe9;background:#fff;border-radius:12px;padding:10px 14px;cursor:pointer;color:var(--ink);font:inherit;transition:.2s transform,.2s border-color,.2s box-shadow}.demo-account:hover,.demo-account.active{border-color:#8bb0d6;box-shadow:0 9px 24px rgba(37,99,166,.1);transform:translateY(-1px)}.demo-avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:#24568f;color:#fff;font-size:19px}.demo-account[data-role="teacher"] .demo-avatar{background:var(--teal)}.demo-meta strong{display:block;font-size:16px}.demo-meta span{display:block;color:var(--muted);font-size:13px;margin-top:2px}.demo-arrow{font-size:25px;font-weight:300;color:#315887}.copyright{text-align:center;color:#6f7c8e;font-size:13px;margin-top:-4px}
+    .forgot-modal{display:none;position:fixed;inset:0;z-index:30;background:rgba(11,31,58,.45);padding:20px;align-items:center;justify-content:center}.forgot-modal.open{display:flex}.forgot-box{width:min(100%,420px);background:#fff;border-radius:20px;padding:28px;box-shadow:0 30px 80px rgba(0,0,0,.24)}.forgot-box h3{margin:0 0 8px;font-size:24px}.forgot-box p{color:var(--muted);line-height:1.5}.forgot-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.secondary-btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:10px 14px;cursor:pointer;color:#42526a}.primary-small{border:0;background:var(--blue);color:#fff;border-radius:10px;padding:10px 14px;cursor:pointer}.reset-message{display:none;margin-top:12px;color:#18796e;font-size:14px}
+    @media (max-width:900px){.auth-shell{grid-template-columns:46% 54%}.auth-promo{padding:52px 38px;border-radius:0 0 60px 0}.auth-promo h1{font-size:48px}.promo-description{font-size:17px}.feature-list li{font-size:15px}.university-logo{width:92px;height:92px;margin-bottom:30px}.auth-panel{padding:26px}.auth-content{max-width:430px}}
+    @media (max-width:700px){.auth-shell{display:flex;flex-direction:column;min-height:100svh;overflow:visible}.auth-panel{order:1;min-height:auto;padding:26px 16px 32px}.auth-promo{order:2;min-height:auto;padding:42px 25px 88px;border-radius:0;background:radial-gradient(400px 300px at 0 0,rgba(42,157,143,.38),transparent 60%),var(--navy)}.auth-content{gap:20px}.signin-card{padding:27px 20px;border-radius:20px}.auth-promo h1{font-size:44px}.promo-description{font-size:17px}.feature-list{gap:14px}.feature-list li{font-size:15px}.university-logo{width:78px;height:78px;margin-bottom:28px;border-radius:18px}.logo-mark .ead{font-size:29px}.campus-art{height:140px}.card-brand{margin-bottom:22px}.brand-title{font-size:21px}}
+    @media (prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+  .auth-divider{display:flex;align-items:center;gap:10px;margin:16px 0 10px;color:#718096;font-size:11px;letter-spacing:.1em}.auth-divider span{height:1px;background:#d7e0ea;flex:1}.oauth-btn{width:100%;height:46px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font-weight:700;margin-top:9px;cursor:pointer;transition:.2s}.oauth-btn:hover{border-color:var(--blue);background:var(--soft-blue)}.oauth-note{text-align:center;color:var(--muted);font-size:11px;line-height:1.45;margin:8px 0 0}.login-theme-toggle{position:fixed;top:18px;right:20px;width:42px;height:42px;border-radius:50%;border:1px solid #cbd7e3;background:#fff;color:#0B1F3A;font-size:18px;z-index:10;cursor:pointer;box-shadow:0 8px 22px rgba(11,31,58,.12)}body.login-dark .auth-panel{background:#0a0a0a}body.login-dark .signin-card,body.login-dark .demo-account{background:#0d1a1a;border-color:#1a2e2e;color:#e2e8f0}body.login-dark .brand-title,body.login-dark .signin-card h2,body.login-dark .field label{color:#e2e8f0}body.login-dark .auth-input{background:#102322;border-color:#1a2e2e;color:#e2e8f0}body.login-dark .auth-input::placeholder{color:#94a3b8}body.login-dark .intro,body.login-dark .brand-subtitle,body.login-dark .demo-meta span,body.login-dark .oauth-note{color:#94a3b8}body.login-dark .demo-title:before,body.login-dark .demo-title:after{background:#1a2e2e}body.login-dark .oauth-btn{background:#102322;border-color:#1a2e2e;color:#e2e8f0}body.login-dark .login-theme-toggle{background:#0d1a1a;color:#5eead4;border-color:#1a2e2e}</style>
+</head>
+<body data-auth="login">
+  <main class="auth-shell">
+    <section class="auth-promo" aria-label="About EAD University Schedule Sender">
+      <div class="promo-inner">
+        <div class="university-logo" aria-label="EAD University logo"><div class="logo-mark"><div class="cap">⌂</div><div class="ead">EAD</div><small>UNIVERSITY</small></div></div>
+        <h1>Schedule smarter.<span>Send with confidence.</span></h1>
+        <p class="promo-description">EAD University Schedule Sender helps coaching teams manage weekly group schedules and deliver WhatsApp updates reliably.</p>
+        <ul class="feature-list">
+          <li><span class="check">✓</span>Weekly group schedules in one place</li>
+          <li><span class="check">✓</span>Automated WhatsApp scheduling</li>
+          <li><span class="check">✓</span>Role-based admin &amp; support portals</li>
+          <li><span class="check">✓</span>Works on web and Android</li>
+        </ul>
+      </div>
+      <div class="campus-art" aria-hidden="true"><svg viewBox="0 0 900 270" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke="#4F95C9" stroke-width="2"><path d="M0 215C125 160 214 242 340 211C500 172 661 205 900 149" opacity=".45"/><path d="M0 245C154 196 277 256 431 227C612 193 711 235 900 184" opacity=".3"/><path d="M50 250H355V234H330V207H299V180H257V151H209V119H162V151H116V180H75V207H50V234H25V250Z"/><path d="M92 234V177M126 234V151M160 234V130M194 234V130M228 234V151M262 234V177M296 234V234"/><path d="M167 119V78L180 68L194 78V119M180 68V35M180 35L208 43L180 50"/><path d="M8 250H372"/><path d="M515 250V184M535 250V198M555 250V171M575 250V191M595 250V207M615 250V181" opacity=".45"/><path d="M480 250C485 220 515 216 526 250C531 220 562 220 571 250C577 211 611 211 619 250C625 224 650 220 664 250" opacity=".4"/></g></svg></div>
+    </section>
+
+    <section class="auth-panel"><button class="login-theme-toggle" id="loginThemeToggle" type="button" aria-label="Toggle dark mode">◐</button>
+      <div class="auth-content">
+        <section class="signin-card" aria-label="Sign in">
+          <div class="card-brand">
+            <div class="mini-logo">EAD</div>
+            <div><div class="brand-title">EAD University</div><div class="brand-subtitle">Schedule Sender</div></div>
+          </div>
+          <p class="eyebrow">SIGN IN</p>
+          <h2>Welcome back</h2>
+          <p class="intro">Use your EAD University email. Accounts are created by an administrator.</p>
+          <div class="login-error" id="loginError" role="alert"></div>
+          <form id="loginForm" novalidate>
+            <div class="field">
+              <label for="email">EMAIL</label>
+              <div class="input-wrap"><span class="input-icon">✉</span><input class="auth-input" id="email" name="email" type="email" placeholder="you@ead.edu.pk" autocomplete="email" required></div>
+            </div>
+            <div class="field">
+              <label for="password">PASSWORD</label>
+              <div class="input-wrap"><span class="input-icon">▣</span><input class="auth-input" id="password" name="password" type="password" placeholder="Your password" autocomplete="current-password" required><button type="button" class="toggle-password" id="togglePassword" aria-label="Show password" title="Show password">◉</button></div>
+            </div>
+            <input type="hidden" id="role" name="role" value="admin">
+            <div class="selected-role" aria-live="polite"><span>Signing in as <b id="selectedRole">Admin</b></span><span id="roleHint">Full system access</span></div>
+            <button class="signin-btn" id="loginBtn" type="submit">Sign in</button>
+          </form>
+          <div class="auth-divider"><span></span><b>OR</b><span></span></div><button type="button" class="oauth-btn" id="googleSignIn">Continue with Google</button><button type="button" class="oauth-btn passkey-btn" id="passkeySignIn">🔑 Sign in with Passkey</button><p class="oauth-note" id="authProviderNote">Google and passkey sign-in become available when configured by the administrator.</p><button type="button" class="forgot" id="forgotPassword">Forgot password?</button>
+          <div class="secured"><span class="shield">⬟</span>Secured with Supabase Auth</div>
+        </section>
+
+        <section class="demo-section" aria-label="Demo accounts">
+          <div class="demo-title">DEMO ACCOUNTS</div>
+          <div class="demo-accounts">
+            <button class="demo-account active" type="button" data-demo="admin@ead.edu.pk" data-role="admin" data-role-label="Admin" data-role-hint="Full system access"><span class="demo-avatar">♟</span><span class="demo-meta"><strong>Admin</strong><span>admin@ead.edu.pk</span></span><span class="demo-arrow">›</span></button>
+            <button class="demo-account" type="button" data-demo="teacher@ead.edu.pk" data-role="teacher" data-role-label="Teacher" data-role-hint="Schedules &amp; student groups"><span class="demo-avatar">♜</span><span class="demo-meta"><strong>Teacher</strong><span>teacher@ead.edu.pk</span></span><span class="demo-arrow">›</span></button>
+            <button class="demo-account" type="button" data-demo="student@ead.edu.pk" data-role="student" data-role-label="Student" data-role-hint="Personal schedule access"><span class="demo-avatar">⌂</span><span class="demo-meta"><strong>Student</strong><span>student@ead.edu.pk</span></span><span class="demo-arrow">›</span></button>
+          </div>
+        </section>
+        <p class="copyright">© 2026 EAD University. All rights reserved.</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="forgot-modal" id="forgotModal" aria-hidden="true"><div class="forgot-box" role="dialog" aria-modal="true" aria-labelledby="forgotTitle"><h3 id="forgotTitle">Reset your password</h3><p>Enter your EAD University email and the administrator can help you reset your account password for this prototype.</p><label class="field"><span>EMAIL</span><input id="resetEmail" class="auth-input" type="email" placeholder="you@ead.edu.pk"></label><div class="reset-message" id="resetMessage">Reset request prepared. Please contact the EAD University administrator.</div><div class="forgot-actions"><button type="button" class="secondary-btn" id="closeForgot">Cancel</button><button type="button" class="primary-small" id="sendReset">Request reset</button></div></div></div>
+
+  <script>
+(function(){
+ const toggle=document.getElementById('loginThemeToggle');const saved=localStorage.getItem('eadLoginTheme');if(saved==='dark')document.body.classList.add('login-dark');
+ toggle?.addEventListener('click',()=>{document.body.classList.toggle('login-dark');localStorage.setItem('eadLoginTheme',document.body.classList.contains('login-dark')?'dark':'light');});
+ document.getElementById('googleSignIn')?.addEventListener('click',async()=>{const note=document.getElementById('authProviderNote');try{if(!window.EAD_SUPABASE?.auth)throw new Error('Supabase Auth is not available.');note.textContent='Opening Google sign-in…';const {error}=await window.EAD_SUPABASE.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin+window.location.pathname}});if(error)throw error;}catch(e){note.textContent='Google sign-in requires Google OAuth to be enabled in your Supabase project.';}});
+})();
+</script>
+  <script src="js/seed-data.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/database.js?v=20260927.1"></script>
+  <script src="js/supabase-db.js?v=20260927.1"></script>
+  <script src="js/auth.js?v=20260927.1"></script>
+  <script src="js/app.js?v=20260927.1"></script>
+<script src="js/portal-enhancements.js?v=20260927.1"></script></body>
+</html>
