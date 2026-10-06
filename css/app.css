@@ -551,6 +551,7 @@ details summary { cursor: pointer; color: var(--muted); margin-top: 8px; }
 .fc-progress { right: 0; top: 132px; display: flex; align-items: center; gap: 12px; animation-delay: .7s, 2.1s; }
 .fc-cert { left: 24px; bottom: 0; display: flex; align-items: center; gap: 12px; animation-delay: .9s, .4s; }
 .fc-row { display: flex; align-items: center; gap: 8px; }
+.fc-progress > div, .fc-cert > div { display: grid; gap: 2px; }
 .fc-dot { width: 8px; height: 8px; border-radius: 50%; background: #93C5FD; }
 .fc-dot.on { background: #F87171; box-shadow: 0 0 0 0 rgba(248,113,113,.7); animation: ping 1.6s infinite; }
 @keyframes ping { 70% { box-shadow: 0 0 0 9px rgba(248,113,113,0); } 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); } }
