@@ -592,8 +592,13 @@ function dataTable(container, cfg) {
 }
 
 /* Files: upload through the Express API, falling back to inline storage for small files. */
+/* The server may accept less than Settings allow (Vercel caps requests at 4.5 MB). Asked once per page; null when no server. */
+let _uploadLimit;
+function serverUploadLimit() {
+  return _uploadLimit ||= fetch('/api/lms/upload-config').then(r => r.ok ? r.json() : null).then(j => Number(j?.maxMB) || null).catch(() => null);
+}
 async function uploadFile(file, { maxMB, types } = {}) {
-  const cfg = lms(), limit = Number(maxMB || cfg.uploadMaxMB) || 30, allowed = types || csvList(cfg.allowedTypes);
+  const cfg = lms(), server = await serverUploadLimit(), limit = Math.min(Number(maxMB || cfg.uploadMaxMB) || 30, server || Infinity), allowed = types || csvList(cfg.allowedTypes);
   if (!file) throw new Error('Please choose a file.');
   const ext = fileExt(file.name);
   if (allowed.length && !allowed.includes(ext)) throw new Error(`.${ext} files are not accepted. Allowed: ${allowed.join(', ')}`);

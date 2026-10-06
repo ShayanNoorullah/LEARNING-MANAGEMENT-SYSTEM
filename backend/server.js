@@ -50,6 +50,7 @@ app.use(async(req,res,next)=>{if(req.path.startsWith('/api/'))await loadFromNeon
 app.use(cors());app.use(express.json({limit:'10mb'}));app.use(express.urlencoded({extended:true}));
 // Uploaded files are always served as downloads with sniffing disabled, so an upload can never run as a page.
 app.use('/uploads',express.static(UPLOAD_DIR,{setHeaders:res=>{res.setHeader('Content-Disposition','attachment');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'none'");}}));
+app.use('/uploads',(req,res)=>res.status(404).json({error:'File not found'}));
 async function neonEnsure(){
  if(!neonSql)return false;
  await neonSql`CREATE TABLE IF NOT EXISTS ead_portal_state (
@@ -148,17 +149,25 @@ app.post('/api/uploads',auth,upload.single('file'),(req,res)=>{if(!req.file)retu
 // SDC Learn file uploads (assignment submissions, session resources, logos).
 // Validated server-side by extension and size; stored under a random name.
 const UPLOAD_TYPES=String(process.env.UPLOAD_ALLOWED_TYPES||'xlsx,xls,xlsm,csv,docx,doc,pptx,ppt,pdf,pbix,twbx,twb,ipynb,sql,txt,md,zip,png,jpg,jpeg,webp,svg,mp4').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
-const UPLOAD_MAX_MB=Number(process.env.UPLOAD_MAX_MB||30);
+// On Vercel the function disk is temporary, so uploads go to Vercel Blob when its token is present.
+const USE_BLOB=!!process.env.BLOB_READ_WRITE_TOKEN;
+// ponytail: Blob uploads pass through the function, so Vercel's 4.5 MB request limit applies; switch to client-side Blob uploads if larger files are needed
+const UPLOAD_MAX_MB=Math.min(Number(process.env.UPLOAD_MAX_MB||30),USE_BLOB?4.5:Infinity);
 const lmsUpload=multer({
- storage:multer.diskStorage({destination:UPLOAD_DIR,filename:(req,file,cb)=>cb(null,crypto.randomUUID()+'.'+path.extname(file.originalname).slice(1).toLowerCase())}),
+ storage:USE_BLOB?multer.memoryStorage():multer.diskStorage({destination:UPLOAD_DIR,filename:(req,file,cb)=>cb(null,crypto.randomUUID()+'.'+path.extname(file.originalname).slice(1).toLowerCase())}),
  limits:{fileSize:UPLOAD_MAX_MB*1024*1024,files:1},
  fileFilter:(req,file,cb)=>{const ext=path.extname(file.originalname).slice(1).toLowerCase();if(!UPLOAD_TYPES.includes(ext)){const e=new Error('.'+ext+' files are not accepted. Allowed: '+UPLOAD_TYPES.join(', '));e.status=415;return cb(e);}cb(null,true);}
 });
 app.post('/api/lms/uploads',(req,res)=>lmsUpload.single('file')(req,res,err=>{
  if(err){const tooBig=err.code==='LIMIT_FILE_SIZE';return res.status(tooBig?413:(err.status||400)).json({error:tooBig?'File is larger than '+UPLOAD_MAX_MB+' MB.':err.message});}
  if(!req.file)return res.status(400).json({error:'File is required'});
- res.status(201).json({url:'/uploads/'+req.file.filename,fileName:req.file.originalname,size:req.file.size});
+ if(!USE_BLOB)return res.status(201).json({url:'/uploads/'+req.file.filename,fileName:req.file.originalname,size:req.file.size});
+ const {put}=require('@vercel/blob');
+ put('uploads/'+crypto.randomUUID()+path.extname(req.file.originalname).toLowerCase(),req.file.buffer,{access:'public',contentType:req.file.mimetype||'application/octet-stream'})
+  .then(b=>res.status(201).json({url:b.downloadUrl,fileName:req.file.originalname,size:req.file.size}))
+  .catch(e=>{console.error('Blob upload failed:',e);res.status(502).json({error:'File storage is unavailable. Please try again.'});});
 }));
+app.get('/api/lms/upload-config',(req,res)=>res.json({maxMB:UPLOAD_MAX_MB,types:UPLOAD_TYPES,storage:USE_BLOB?'vercel-blob':'disk'}));
 app.get('/api/admin/export',auth,roles('admin'),(req,res)=>res.json(readDB()));
 app.use(express.static(ROOT,{extensions:['html']}));
 app.get('*',(req,res)=>res.sendFile(path.join(ROOT,'index.html')));

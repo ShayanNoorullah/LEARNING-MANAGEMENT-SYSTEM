@@ -317,7 +317,8 @@ App.route('/course/:id/submit', { perm: 'learn', base: 'student', render(ctx) {
   courseTools(ctx, course);
   const assignments = Domain.courseAssignments(course.id);
   const sessions = Domain.courseSessions(course.id, true);
-  const cfg = lms(), types = csvList(cfg.allowedTypes), maxMB = Number(cfg.uploadMaxMB) || 30;
+  const cfg = lms(), types = csvList(cfg.allowedTypes);
+  let maxMB = Number(cfg.uploadMaxMB) || 30;
   const label = a => { const s = sessions.find(x => x.id === a.sessionId); return `${s ? `${t('session')} ${sessions.indexOf(s) + 1} · ` : ''}${a.title}`; };
   if (!assignments.length) {
     ctx.root.innerHTML = pageHead(`Submit ${t('assignment')}`, esc(course.title)) + emptyState(`No ${t('assignments', true)} yet`, `Your instructor hasn't published any ${t('assignments', true)} for this ${t('course', true)}.`, 'clipboard');
@@ -339,7 +340,8 @@ App.route('/course/:id/submit', { perm: 'learn', base: 'student', render(ctx) {
       <aside class="stack" data-side></aside>
     </div>`;
   const form = ctx.root.querySelector('[data-form]');
-  const dz = dropzone(ctx.root.querySelector('[data-drop]'), { accept: types, maxMB });
+  let dz = dropzone(ctx.root.querySelector('[data-drop]'), { accept: types, maxMB });
+  serverUploadLimit().then(mb => { if (mb && mb < maxMB) { maxMB = mb; dz = dropzone(ctx.root.querySelector('[data-drop]'), { accept: types, maxMB }); detail(); } });
   const detail = () => {
     const a = findRecord('assignments', form.assignment.value), st = Domain.assignmentState(a, u.id), sub = st.submission;
     const late = a.dueAt && new Date(a.dueAt) < new Date();
