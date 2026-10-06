@@ -4,3 +4,5 @@
 backend/uploads
 node_modules
 .git
+tests
+supabase
