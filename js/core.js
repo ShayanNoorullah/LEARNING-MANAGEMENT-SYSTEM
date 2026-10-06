@@ -52,6 +52,7 @@ const DEFAULT_SETTINGS = {
     feedbackAtPercent: 40
   },
   features: { attendance: true, results: true, certificates: true, fees: true, messages: true, announcements: true, calendar: true, feedback: true },
+  auth: { googleEnabled: true, googleSignUpRole: '' },
   general: { pageSize: 10 }
 };
 

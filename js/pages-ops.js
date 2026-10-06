@@ -473,7 +473,7 @@ App.route('/settings', { perm: 'settings', render(ctx) {
   ctx.setCrumbs([{ label: 'Settings' }]);
   const tab = ctx.query.tab || 'brand';
   const s = settings();
-  const tabs = [['brand', 'Branding', 'building'], ['appearance', 'Appearance', 'sun'], ['terms', 'Terminology', 'book'], ['learning', 'Learning', 'cap'], ['features', 'Features', 'grid'], ['data', 'Data', 'database']];
+  const tabs = [['brand', 'Branding', 'building'], ['appearance', 'Appearance', 'sun'], ['terms', 'Terminology', 'book'], ['learning', 'Learning', 'cap'], ['auth', 'Sign-in', 'shield'], ['features', 'Features', 'grid'], ['data', 'Data', 'database']];
   const groups = {
     brand: { section: 'brand', fields: [
       { name: 'productName', label: 'Product name', required: true }, { name: 'orgShort', label: 'Short organisation name', required: true }, { name: 'orgName', label: 'Organisation name', required: true, full: true },
@@ -501,6 +501,10 @@ App.route('/settings', { perm: 'settings', render(ctx) {
       { name: 'deliveryModes', label: 'Delivery modes', full: true, help: 'value:Label pairs separated by |' }, { name: 'feeTypes', label: `${t('fee')} types`, full: true, help: 'Separated by |' },
       { name: 'showDemoAccounts', label: 'Demo accounts', type: 'checkbox', checkLabel: 'Show demo account shortcuts on the sign-in page (turn off in production)' }
     ] },
+    auth: { section: 'auth', fields: [
+      { name: 'googleEnabled', label: 'Google', type: 'checkbox', checkLabel: 'Show "Continue with Google" on the sign-in page (when Google is enabled in Supabase)' },
+      { name: 'googleSignUpRole', label: 'New Google users', type: 'select', options: () => db().roles.map(r => ({ value: r.id, label: `Create an account with role: ${r.name}` })), placeholderOption: 'Do not create accounts — only existing users can sign in', full: true, help: 'Existing users are always matched by their email address.' }
+    ] },
     features: { section: 'features', fields: Object.keys(DEFAULT_SETTINGS.features).map(k => ({ name: k, label: k, type: 'checkbox', checkLabel: { attendance: 'Attendance tracking', results: 'Results & grading', certificates: 'Certificates & verification', fees: `${t('fees')} & payments`, messages: 'Private messaging', announcements: 'Announcements', calendar: 'Training calendar', feedback: 'Mid-course feedback prompts' }[k] })) }
   };
   ctx.root.innerHTML = `${pageHead('Settings', 'Everything here is applied instantly across the platform — no code changes needed.')}
@@ -522,10 +526,11 @@ App.route('/settings', { perm: 'settings', render(ctx) {
     return;
   }
   const g = groups[tab], values = s[g.section], readOnly = !can('settings', 'edit');
-  pane.innerHTML = `<form class="card" novalidate>${formHTML(g.fields, values)}${tab === 'brand' ? `<div class="sub-section"><h3>Upload logo</h3><div class="row gap-sm wrap"><img src="${esc(resolveAsset(values.logoUrl))}" class="logo-preview" alt="Current logo"><label class="btn btn-ghost file-btn">${icon('upload', 16)} Choose image<input type="file" accept=".svg,.png,.jpg,.jpeg,.webp" hidden data-logo></label><span class="small muted">SVG or PNG, square, up to 1 MB.</span></div></div>` : ''}${tab === 'appearance' ? `<div class="sub-section"><h3>Preview</h3><div class="row gap-sm wrap"><button type="button" class="btn btn-primary">Primary</button><button type="button" class="btn btn-secondary">Secondary</button>${badge('Today', 'accent')}${badge('Submit', 'highlight')}${badge('Upcoming')}</div></div>` : ''}<div class="form-foot"><button type="button" class="btn btn-ghost" data-defaults>Restore defaults</button><button class="btn btn-primary" type="submit">${icon('check', 16)} Save ${esc(tabs.find(x => x[0] === tab)[1].toLowerCase())}</button></div></form>`;
+  pane.innerHTML = `<form class="card" novalidate>${formHTML(g.fields, values)}${tab === 'brand' ? `<div class="sub-section"><h3>Upload logo</h3><div class="row gap-sm wrap"><img src="${esc(resolveAsset(values.logoUrl))}" class="logo-preview" alt="Current logo"><label class="btn btn-ghost file-btn">${icon('upload', 16)} Choose image<input type="file" accept=".svg,.png,.jpg,.jpeg,.webp" hidden data-logo></label><span class="small muted">SVG or PNG, square, up to 1 MB.</span></div></div>` : ''}${tab === 'auth' ? `<div class="sub-section"><h3>Google setup</h3><dl class="facts"><div><dt>Provider in Supabase</dt><dd data-gstatus>Checking…</dd></div><div><dt>Redirect URL</dt><dd>${copyRow('URL', location.origin + '/login.html', true)}</dd></div></dl><p class="help">Add this redirect URL (and every other domain you use, e.g. localhost) in Supabase → Authentication → URL Configuration → Redirect URLs. The Google client ID and secret live in Supabase → Authentication → Providers → Google.</p></div>` : ''}${tab === 'appearance' ? `<div class="sub-section"><h3>Preview</h3><div class="row gap-sm wrap"><button type="button" class="btn btn-primary">Primary</button><button type="button" class="btn btn-secondary">Secondary</button>${badge('Today', 'accent')}${badge('Submit', 'highlight')}${badge('Upcoming')}</div></div>` : ''}<div class="form-foot"><button type="button" class="btn btn-ghost" data-defaults>Restore defaults</button><button class="btn btn-primary" type="submit">${icon('check', 16)} Save ${esc(tabs.find(x => x[0] === tab)[1].toLowerCase())}</button></div></form>`;
   const form = pane.querySelector('form');
   if (readOnly) { pane.querySelectorAll('input,select,textarea,button').forEach(x => x.disabled = true); pane.querySelector('.form-foot').innerHTML = badge('View only — you do not have permission to change settings'); }
   bindColorFields(pane);
+  if (tab === 'auth') { bindCopyButtons(pane); const c = window.SDC_CLOUD_CONFIG || {}; const el = pane.querySelector('[data-gstatus]'); if (!c.url) el.textContent = 'Supabase not configured (js/cloud-config.js)'; else fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.anonKey } }).then(r => r.json()).then(j => { el.innerHTML = j.external?.google ? badge('Enabled', 'success') : badge('Not enabled', 'warning'); }).catch(() => { el.textContent = 'Could not reach Supabase'; }); }
   if (tab === 'appearance') form.querySelectorAll('input[type=color]').forEach(i => i.addEventListener('input', () => { document.documentElement.style.setProperty({ primary: '--brand', accent: '--accent', highlight: '--highlight' }[i.name], i.value); }));
   pane.querySelector('[data-logo]')?.addEventListener('change', async e => {
     const f = e.target.files[0]; if (!f) return;

@@ -613,8 +613,12 @@ details summary { cursor: pointer; color: var(--muted); margin-top: 8px; }
 .fc-progress { top: 46%; } .fc-live { width: min(300px, 62%); }
 @media (max-height: 820px) { .auth-accred { display: none; } .fc-cert { display: none; } .logo-plate img { height: 44px; } }
 @media (max-height: 680px) { .auth-stage { display: none; } .auth-sub { display: none; } }
-@media (max-height: 640px) { .auth-card > .muted, .demo-note, .auth-card-logo.logo-plate { display: none; } }
+@media (max-height: 700px) { .auth-card > .muted, .demo-note { display: none; } }
+@media (max-height: 640px) { .auth-card-logo.logo-plate { display: none !important; } }
 @media (max-width: 860px) { .auth-card-logo.logo-plate { display: inline-flex; justify-self: start; margin-bottom: clamp(8px, 2vh, 16px); padding: 6px 10px; } .auth-card-logo img { height: 40px; } }
+.google-btn { gap: 10px; font-weight: 650; background: var(--surface); }
+.google-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--surface); box-shadow: 0 6px 16px -10px rgba(16,24,40,.35); }
+.divider-tight { margin: clamp(10px, 2vh, 16px) 0 2px; }
 .verify-plate { justify-self: center; } .verify-plate img { height: 64px; }
 
 /* verify */

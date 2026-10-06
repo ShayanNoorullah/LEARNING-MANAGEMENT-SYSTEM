@@ -45,12 +45,58 @@
       <div class="fc fc-cert"><span class="fc-award">${icon('award', 18)}</span><div><b>Certificate verified</b><small class="fc-muted">${esc(lms().certificatePrefix)}-${new Date().getFullYear()}-0001</small></div>${icon('check', 16)}</div>`;
   }
 
+  const showError = msg => { const err = $('#loginError'); err.textContent = msg; err.hidden = false; const c = $('.auth-card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); };
+
+  /* Sign in with Google via Supabase Auth. Google proves who the person is; the platform account
+     (role, permissions, courses) is found by email. Unknown emails are refused unless Settings →
+     Sign-in names a role for automatic registration. */
+  async function setupGoogle() {
+    const c = window.SDC_CLOUD_CONFIG || {}, btn = $('#googleBtn');
+    if (!settings().auth.googleEnabled || !c.url || !c.anonKey || !window.supabase?.createClient) return;
+    const q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.slice(1));
+    const oauthError = q.get('error_description') || h.get('error_description');
+    if (oauthError) { history.replaceState(null, '', location.pathname); showError(`Google sign-in failed: ${oauthError}`); }
+    const client = window.supabase.createClient(c.url, c.anonKey, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, storageKey: 'sdc-google-auth' } });
+    const returning = q.has('code');
+    if (returning) { btn.hidden = false; btn.disabled = true; btn.querySelector('span').textContent = 'Signing you in…'; }
+    const { data } = await client.auth.getSession();
+    if (data.session?.user?.email) return finishGoogle(client, data.session.user);
+    if (returning) { history.replaceState(null, '', location.pathname); btn.disabled = false; btn.querySelector('span').textContent = 'Continue with Google'; }
+    try { const r = await fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.anonKey } }); if (!(await r.json()).external?.google) { btn.hidden = true; return; } } catch (e) { btn.hidden = true; return; }
+    btn.hidden = false; $('#googleOr').hidden = false;
+    btn.onclick = async () => {
+      btn.disabled = true; btn.querySelector('span').textContent = 'Redirecting to Google…';
+      const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } } });
+      if (error) { showError(error.message); btn.disabled = false; btn.querySelector('span').textContent = 'Continue with Google'; }
+    };
+  }
+  async function finishGoogle(client, gUser) {
+    history.replaceState(null, '', location.pathname);
+    const email = String(gUser.email).toLowerCase(), meta = gUser.user_metadata || {};
+    try { await window.SDCCloud?.ready; } catch (e) {} // make sure accounts created on other devices are known
+    invalidateCache();
+    let u = db().users.find(x => String(x.email).toLowerCase() === email);
+    const signUpRole = settings().auth.googleSignUpRole;
+    if (!u && signUpRole && findRecord('roles', signUpRole)) {
+      u = addRecord('users', { name: meta.full_name || meta.name || email.split('@')[0], email, role: signUpRole, status: 'Active', joinedAt: todayISO(), authProvider: 'google' });
+      notifyMany(db().users.filter(x => roleOf(x)?.id === 'admin').map(x => x.id), 'New Google sign-up', `${u.name} (${email}) joined as ${roleLabel(u)}.`, 'Account', '#/users');
+    }
+    await client.auth.signOut().catch(() => {});
+    const btn = $('#googleBtn'); btn.disabled = false; btn.querySelector('span').textContent = 'Continue with Google';
+    if (!u) return showError(`${email} isn't registered on ${brand().productName}. Ask your coordinator to create your account, then try again.`);
+    if (u.status !== 'Active') return showError('This account is not active. Please contact your coordinator.');
+    sessionStorage.setItem('sdcSession', u.id);
+    updateRecord('users', u.id, { lastLoginAt: new Date().toISOString(), avatarUrl: meta.avatar_url || u.avatarUrl || '' });
+    location.href = 'app.html';
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     if (currentUser()) { location.replace('app.html'); return; }
+    setupGoogle();
     paint();
     window.addEventListener('sdc-cloud-refresh', paint);
     const err = $('#loginError'), btn = $('#loginBtn');
-    const show = msg => { err.textContent = msg; err.hidden = false; const c = $('.auth-card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); };
+    const show = showError;
     $('[data-theme-toggle]').onclick = e => { const m = toggleTheme(); e.currentTarget.innerHTML = icon(m === 'dark' ? 'sun' : 'moon'); };
     $('#togglePw').onclick = () => { const p = $('#password'), show = p.type === 'password'; p.type = show ? 'text' : 'password'; $('#togglePw').setAttribute('aria-label', show ? 'Hide password' : 'Show password'); };
     $('#forgot').onclick = () => {

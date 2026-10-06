@@ -125,6 +125,7 @@ Safety rules: the built-in `admin` role always has full access and its matrix is
 - **Results:** final % = weighted average of assignment average, assessment and attendance using the weights in Settings; grade from the configurable grade bands.
 - **Certificates:** eligible when enrollment is Completed, progress ≥ the eligibility %, or a published passing result. Codes are `PREFIX-YEAR-0001` and can be checked on `verify.html`.
 - **Theme:** `applyTheme()` writes brand colours to CSS variables (`--brand`, `--accent`, `--highlight`, `--radius`); the per-user light/dark choice is stored as `sdcTheme`.
+- **Google sign-in:** `login.js` uses a separate Supabase Auth client (PKCE) only to obtain the Google-verified email, matches it to a platform user (or registers one with `settings.auth.googleSignUpRole`), signs out of Supabase and starts the normal platform session. The button appears only when Supabase reports Google enabled and `settings.auth.googleEnabled` is on.
 - **Passwords:** salted, iterated SHA-256 (`hashPassword`), synchronous so it works offline and on `file://`.
 
 ## Extending

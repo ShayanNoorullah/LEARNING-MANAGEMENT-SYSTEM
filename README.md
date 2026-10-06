@@ -52,7 +52,7 @@ Open **http://localhost:3000** and use a demo account (password `Demo@123`):
 | 🎓 Learner | `learner@sdclearn.demo` | My Courses — one class is live today |
 | 💼 Accounts Officer | `accounts@sdclearn.demo` | A custom role limited to fees |
 
-Full setup, environment variables and deployment: **[SETUP.md](SETUP.md)** · Walkthroughs and troubleshooting: **[RUN.md](RUN.md)**
+Live: **https://ead-university-portal-ten.vercel.app** · Full setup, Google sign-in, environment variables and deployment: **[SETUP.md](SETUP.md)** · Walkthroughs and troubleshooting: **[RUN.md](RUN.md)**
 
 ---
 
@@ -91,6 +91,7 @@ Full setup, environment variables and deployment: **[SETUP.md](SETUP.md)** · Wa
 <td valign="top">
 
 ### 🔐 Roles & permissions
+- **Sign in with Google** (via Supabase Auth) or email & password
 - Create unlimited roles; full create / edit / duplicate / delete
 - **20 modules × view · create · edit · delete · publish**
 - **Course access**: all, assigned, enrolled or hand-picked courses
@@ -371,7 +372,7 @@ Full field reference: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md#data-model
 
 - Passwords are stored only as **salted, iterated SHA-256 hashes**.
 - Uploads are validated **on the server** (extension + size), stored under random names and served as downloads with `nosniff`.
-- Permission checks run in the browser: they control the experience but are **not a server-side boundary**. For public deployments, follow [supabase/PRODUCTION_SECURITY_NOTES.md](supabase/PRODUCTION_SECURITY_NOTES.md) and the [production checklist](SETUP.md#8-production-checklist).
+- Permission checks run in the browser: they control the experience but are **not a server-side boundary**. For public deployments, follow [supabase/PRODUCTION_SECURITY_NOTES.md](supabase/PRODUCTION_SECURITY_NOTES.md) and the [production checklist](SETUP.md#9-production-checklist).
 
 ---
 

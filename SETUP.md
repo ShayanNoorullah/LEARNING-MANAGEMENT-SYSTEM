@@ -73,7 +73,23 @@ Without Supabase, all data lives in each browser separately. With it, every devi
 
 Set `enabled: false` to run fully offline. The included policies are for evaluation; read `supabase/PRODUCTION_SECURITY_NOTES.md` before going public.
 
-## 6. Optional: Neon for the server's own state
+## 6. Sign in with Google
+
+Google sign-in runs through **Supabase Auth**, using the same project as §5. Google confirms who the person is; SDC Learn then finds the platform account with the same email, so roles, permissions and courses still come from SDC Learn.
+
+1. **Google Cloud Console** → APIs & Services → Credentials → *Create OAuth client ID* (Web application).
+   - Authorised redirect URI: `https://YOUR-PROJECT.supabase.co/auth/v1/callback`
+2. **Supabase** → Authentication → Providers → **Google**: enable it and paste the client ID and secret.
+3. **Supabase** → Authentication → URL Configuration → **Redirect URLs**: add every address people sign in from, for example:
+   - `https://ead-university-portal-ten.vercel.app/login.html`
+   - `http://localhost:3000/login.html`
+4. **SDC Learn** → Settings → **Sign-in**: keep *Show "Continue with Google"* on, and choose what happens to unknown emails:
+   - *Do not create accounts* (default) — only people a coordinator has already added can sign in;
+   - or *Create an account with role: …* — first-time Google users are registered automatically (coordinators are notified).
+
+The Sign-in tab shows whether Google is enabled in Supabase and the exact redirect URL for the current domain. The button only appears when Google is enabled, so it is never shown broken. Accounts created through Google have no password; a coordinator can set one in People → All users if needed.
+
+## 7. Optional: Neon for the server's own state
 
 The Express server keeps a small state file (`backend/data/database.json`: server-side demo accounts and passkey data). On hosts with temporary disks you can persist it in Neon:
 
@@ -83,7 +99,7 @@ The Express server keeps a small state file (`backend/data/database.json`: serve
 
 This does **not** store course, learner or enrollment data — that is the browser/Supabase state from §5.
 
-## 7. Deploy
+## 8. Deploy
 
 The same Express app serves the pages and the upload API, so one service is enough.
 
@@ -107,18 +123,19 @@ npx vercel
 npx vercel --prod
 ```
 
-Set `JWT_SECRET` in the project's environment variables. Limitations: uploads go to `/tmp` and disappear when the function restarts, and request bodies are capped at 4.5 MB. Use Render, or connect object storage (S3, Supabase Storage, Vercel Blob) and point **Settings → Learning → Upload endpoint** at it, for real submissions.
+Set `JWT_SECRET` in the project's environment variables, and add the Vercel URL to Supabase Redirect URLs (§6) for Google sign-in. `.vercelignore` keeps `.env` files and local uploads out of deployments. Limitations: uploads go to `/tmp` and disappear when the function restarts, and request bodies are capped at 4.5 MB. Use Render, or connect object storage (S3, Supabase Storage, Vercel Blob) and point **Settings → Learning → Upload endpoint** at it, for real submissions.
 
 ### Static hosting only
 
 The pages work from any static host (including opening `login.html` from a local web server). Without the Express server, uploads fall back to browser storage for files up to **Settings → Learning → Browser fallback limit** (default 1.5 MB).
 
-## 8. Production checklist
+## 9. Production checklist
 
 - [ ] Turn off **Settings → Learning → Demo accounts**
 - [ ] Deactivate or delete the demo users, and create real coordinator accounts
 - [ ] Set a strong `JWT_SECRET`
 - [ ] Configure Supabase (§5) and tighten its policies
 - [ ] Use persistent upload storage (Render disk or object storage)
+- [ ] Add the production URL to Supabase Redirect URLs and choose the Google sign-up policy (§6)
 - [ ] Set the real help/support form URL and per-course Zoom links
 - [ ] Download a backup from **Settings → Data** after initial setup
