@@ -1,0 +1,11 @@
+SDC LEARN — Microsoft Excel with AI-Driven Analytics & Automation
+Session 1: Excel foundations & data hygiene
+-----------------------------------------------------------------
+1. Convert ranges to Tables (Ctrl+T) — structured references, auto-expansion.
+2. Data types — numbers stored as text (VALUE / Text to Columns); DD/MM/YYYY dates.
+3. Cleaning toolkit — TRIM, CLEAN, PROPER, SUBSTITUTE, Remove Duplicates, Flash Fill (Ctrl+E).
+4. Data validation — drop-down lists, input messages, error alerts.
+5. Practice — open "Practice dataset — Retail sales", convert to a Table, fix types,
+   add a Revenue check column (Units x UnitPrice).
+
+Questions? Use the Help button on the course page.

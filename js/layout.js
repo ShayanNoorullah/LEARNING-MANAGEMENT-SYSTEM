@@ -1,1 +1,0 @@
-/* Shared layout is rendered by each HTML page and activated by app.js. */

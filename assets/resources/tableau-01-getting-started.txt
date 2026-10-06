@@ -1,0 +1,6 @@
+SDC LEARN — Tableau for Data Visualization & Analytics
+Session 1: Welcome to Tableau
+-------------------------------------------------------
+Before class: install Tableau Public (free) from https://public.tableau.com/
+In this session: workspace tour, connecting to CSV/Excel, dimensions vs measures,
+and building a bar chart, line chart and a simple map.

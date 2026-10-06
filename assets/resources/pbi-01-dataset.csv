@@ -1,0 +1,71 @@
+Date,Store,Product,Category,Units,Revenue,Cost
+2026-07-12,Store 2,Product 15,Electronics,18,12006,7444
+2026-07-16,Store 5,Product 19,Apparel,9,7749,4804
+2026-07-30,Store 3,Product 20,Groceries,10,27790,17230
+2026-07-26,Store 6,Product 4,Home & Kitchen,19,15295,9483
+2026-07-15,Store 1,Product 12,Stationery,18,44802,27777
+2026-07-26,Store 3,Product 5,Electronics,7,4998,3099
+2026-07-08,Store 4,Product 14,Apparel,5,2510,1556
+2026-07-25,Store 6,Product 6,Groceries,5,4070,2523
+2026-07-23,Store 6,Product 5,Home & Kitchen,6,2754,1707
+2026-07-22,Store 2,Product 13,Stationery,13,15782,9785
+2026-07-20,Store 5,Product 11,Electronics,16,12880,7986
+2026-07-27,Store 2,Product 15,Apparel,15,23220,14396
+2026-07-24,Store 3,Product 3,Groceries,9,4680,2902
+2026-07-09,Store 4,Product 11,Home & Kitchen,3,1227,761
+2026-07-21,Store 5,Product 8,Stationery,8,9216,5714
+2026-07-28,Store 2,Product 4,Electronics,14,20552,12742
+2026-07-20,Store 4,Product 11,Apparel,22,43032,26680
+2026-07-02,Store 4,Product 14,Groceries,11,18810,11662
+2026-07-25,Store 5,Product 4,Home & Kitchen,7,6160,3819
+2026-07-17,Store 5,Product 3,Stationery,24,33696,20892
+2026-07-04,Store 1,Product 8,Electronics,6,8946,5547
+2026-07-18,Store 5,Product 11,Apparel,5,9545,5918
+2026-07-09,Store 4,Product 6,Groceries,20,25840,16021
+2026-07-30,Store 3,Product 6,Home & Kitchen,12,34632,21472
+2026-07-10,Store 4,Product 14,Stationery,21,39879,24725
+2026-07-22,Store 3,Product 2,Electronics,3,8958,5554
+2026-07-08,Store 2,Product 13,Apparel,2,3042,1886
+2026-07-19,Store 4,Product 14,Groceries,14,25158,15598
+2026-07-09,Store 5,Product 9,Home & Kitchen,5,2595,1609
+2026-07-02,Store 4,Product 6,Stationery,21,28329,17564
+2026-07-10,Store 1,Product 18,Electronics,20,54140,33567
+2026-07-13,Store 3,Product 20,Apparel,18,30726,19050
+2026-07-16,Store 1,Product 16,Groceries,6,4038,2504
+2026-07-10,Store 4,Product 3,Home & Kitchen,4,5464,3388
+2026-07-31,Store 2,Product 12,Stationery,19,22287,13818
+2026-07-29,Store 2,Product 6,Electronics,16,38176,23669
+2026-07-17,Store 2,Product 5,Apparel,16,28304,17548
+2026-07-27,Store 2,Product 14,Groceries,5,13390,8302
+2026-07-08,Store 5,Product 13,Home & Kitchen,18,24786,15367
+2026-07-25,Store 2,Product 17,Stationery,9,7722,4788
+2026-07-23,Store 5,Product 14,Electronics,11,23342,14472
+2026-07-16,Store 4,Product 10,Apparel,23,52900,32798
+2026-07-30,Store 5,Product 14,Groceries,17,27013,16748
+2026-07-29,Store 6,Product 13,Home & Kitchen,5,13010,8066
+2026-07-04,Store 2,Product 19,Stationery,2,3492,2165
+2026-07-28,Store 4,Product 16,Electronics,2,3152,1954
+2026-07-27,Store 6,Product 19,Apparel,17,36550,22661
+2026-07-03,Store 4,Product 15,Groceries,9,15102,9363
+2026-07-06,Store 4,Product 5,Home & Kitchen,12,18444,11435
+2026-07-22,Store 4,Product 4,Stationery,24,33552,20802
+2026-07-26,Store 5,Product 19,Electronics,22,10824,6711
+2026-07-22,Store 5,Product 7,Apparel,16,45968,28500
+2026-07-10,Store 4,Product 3,Groceries,25,40100,24862
+2026-07-13,Store 4,Product 5,Home & Kitchen,11,10241,6349
+2026-07-14,Store 5,Product 11,Stationery,11,18546,11499
+2026-07-26,Store 4,Product 20,Electronics,22,49874,30922
+2026-07-21,Store 5,Product 13,Apparel,4,3156,1957
+2026-07-27,Store 4,Product 6,Groceries,19,37829,23454
+2026-07-29,Store 1,Product 18,Home & Kitchen,10,27260,16901
+2026-07-13,Store 5,Product 14,Stationery,7,18228,11301
+2026-07-11,Store 2,Product 12,Electronics,10,26430,16387
+2026-07-28,Store 4,Product 18,Apparel,11,31878,19764
+2026-07-04,Store 6,Product 16,Groceries,14,36092,22377
+2026-07-27,Store 5,Product 8,Home & Kitchen,15,7035,4362
+2026-07-18,Store 4,Product 4,Stationery,21,17115,10611
+2026-07-24,Store 4,Product 6,Electronics,10,27220,16876
+2026-07-20,Store 6,Product 1,Apparel,22,25982,16109
+2026-07-12,Store 3,Product 13,Groceries,2,3818,2367
+2026-07-11,Store 4,Product 3,Home & Kitchen,21,25032,15520
+2026-07-01,Store 2,Product 9,Stationery,5,10440,6473

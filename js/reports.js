@@ -1,2 +1,0 @@
-
-function reportRows(type){const d=db();if(type==='students')return d.students.map(s=>[s.id,s.name,s.program,s.department,s.semester,s.status]);if(type==='attendance')return d.attendance.map(a=>[studentName(a.student),subjectName(a.subject),fmtDate(a.date),a.status]);if(type==='fees')return d.fees.map(f=>[studentName(f.student),f.type,f.amount,fmtDate(f.dueDate),f.status]);if(type==='results')return d.results.map(r=>[studentName(r.student),subjectName(r.subject),r.percentage,r.grade,r.gpa,r.published?'Published':'Draft']);return []}

@@ -1,29 +1,31 @@
 {
   "users": [
     {
-      "id": "USR-ADMIN-001",
-      "name": "System Administrator",
-      "email": "admin@ead.edu",
+      "id": "u-admin",
+      "name": "Sana Mirza",
+      "email": "admin@sdclearn.demo",
       "username": "admin",
-      "passwordHash": "$2a$10$NooUInZ.OX2fNcqGe66MV.Dz23C1shVwo6gB3piA7/fspN.6sLjxq",
+      "passwordHash": "$2a$10$lQHyXKMR2DqRspp9nItGbOqwdCcgAUg2U0pYygzqViaWDvNIDsnGu",
       "role": "admin",
-      "status": "Active"
+      "status": "Active",
+      "passkeys": []
     },
     {
-      "id": "USR-TEACHER-001",
-      "name": "Dr. Ahmed Khan",
-      "email": "teacher@ead.edu",
-      "username": "teacher",
-      "passwordHash": "$2a$10$qUXNxYXMBQMS0UpCohThLOQdcDwqJr8OZTAkthPRML1GPt7Y4KUNu",
+      "id": "u-faraz",
+      "name": "Faraz Ahmed",
+      "email": "instructor@sdclearn.demo",
+      "username": "instructor",
+      "passwordHash": "$2a$10$AVNSu9tPmJx9GnyD7hPzreIdE9LDXOYWE2NL4XIila0KtzYUCQwIy",
       "role": "teacher",
-      "status": "Active"
+      "status": "Active",
+      "passkeys": []
     },
     {
-      "id": "USR-STUDENT-001",
+      "id": "u-ali",
       "name": "Ali Raza",
-      "email": "student@ead.edu",
-      "username": "student",
-      "passwordHash": "$2a$10$oqZfO1xYnUwqWfYVx6yF7utRJ4KjpiaOj4KK9UOellh0ohJ7IIm7m",
+      "email": "learner@sdclearn.demo",
+      "username": "learner",
+      "passwordHash": "$2a$10$hPcaqy0VZI8RKDUFi5t85enyI3cn/.MiCcHyWK63InKB2dJ8QU40u",
       "role": "student",
       "status": "Active",
       "passkeys": []
@@ -45,8 +47,9 @@
   "announcements": [],
   "messages": [],
   "notifications": [],
+  "materials": [],
   "settings": {
-    "universityName": "EAD UNIVERSITY",
+    "productName": "SDC Learn",
     "attendanceWarning": 75,
     "academicYear": "2026-27"
   }

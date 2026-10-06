@@ -1,4 +1,4 @@
--- EAD University Portal - Supabase PostgreSQL schema
+-- SDC Learn - Supabase PostgreSQL schema (cloud sync state table)
 -- Run this file in Supabase SQL Editor.
 
 create table if not exists public.ead_app_state (

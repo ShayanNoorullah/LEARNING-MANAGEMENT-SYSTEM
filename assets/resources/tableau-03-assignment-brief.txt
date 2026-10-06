@@ -1,0 +1,7 @@
+SDC LEARN — Assignment: Superstore sales story
+------------------------------------------------
+Dataset: tableau-02-superstore-sample.csv
+ - Three views explaining profitability by Region and Sub-Category.
+ - At least one calculated field (e.g. Profit Ratio = SUM(Profit)/SUM(Sales)).
+ - A short story (3 points) for management.
+Submit a packaged workbook (.twbx) or a PDF export. Marks: 25.

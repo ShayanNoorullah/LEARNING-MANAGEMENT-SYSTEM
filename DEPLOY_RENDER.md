@@ -1,4 +1,4 @@
-# Deploy EAD University Portal (Production-Ready)
+# Deploy SDC Learn (Production-Ready)
 
 ## Recommended: Render (one live URL)
 This project serves the frontend and API from the same Express application. That is important for passkeys because WebAuthn credentials are tied to the website domain.
@@ -29,8 +29,8 @@ The portal keeps its local JSON fallback so existing workflows remain available 
 After deployment, check `/api/neon/health`. An authenticated Admin can also POST to `/api/neon/bootstrap` to push the current demo dataset into Neon.
 
 ### Demo accounts
-- Admin: `admin@ead.edu` / `admin123`
-- Teacher: `teacher@ead.edu` / `teacher123`
-- Student: `student@ead.edu` / `student123`
+- Admin: `admin@sdclearn.demo` / `Demo@123`
+- Instructor: `instructor@sdclearn.demo` / `Demo@123`
+- Learner: `learner@sdclearn.demo` / `Demo@123`
 
 Change these demo passwords before any public production deployment. Never place `DATABASE_URL`, `JWT_SECRET`, or other secrets in frontend JavaScript or Git.

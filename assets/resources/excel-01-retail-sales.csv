@@ -1,0 +1,121 @@
+OrderID,Date,Region,Category,Product,Units,UnitPrice,Revenue
+ORD-1001,2026-02-09,Lahore,Apparel,Item 7,1,8299,8299
+ORD-1002,2026-03-10,Islamabad,Groceries,Item 23,29,4865,141085
+ORD-1003,2026-04-19,Hyderabad,Home & Kitchen,Item 19,30,4954,148620
+ORD-1004,2026-05-11,Faisalabad,Stationery,Item 22,33,2292,75636
+ORD-1005,2026-06-19,Multan,Electronics,Item 15,28,627,17556
+ORD-1006,2026-01-04,Peshawar,Apparel,Item 16,37,7296,269952
+ORD-1007,2026-02-18,Quetta,Groceries,Item 18,37,6243,230991
+ORD-1008,2026-03-11,Karachi,Home & Kitchen,Item 11,37,8189,302993
+ORD-1009,2026-04-05,Lahore,Stationery,Item 10,34,3090,105060
+ORD-1010,2026-05-26,Islamabad,Electronics,Item 17,18,2760,49680
+ORD-1011,2026-06-03,Hyderabad,Apparel,Item 9,29,7919,229651
+ORD-1012,2026-01-12,Faisalabad,Groceries,Item 7,23,4653,107019
+ORD-1013,2026-02-11,Multan,Home & Kitchen,Item 11,36,636,22896
+ORD-1014,2026-03-15,Peshawar,Stationery,Item 6,27,8330,224910
+ORD-1015,2026-04-11,Quetta,Electronics,Item 13,17,2660,45220
+ORD-1016,2026-05-18,Karachi,Apparel,Item 8,14,4855,67970
+ORD-1017,2026-06-24,Lahore,Groceries,Item 19,36,4202,151272
+ORD-1018,2026-01-15,Islamabad,Home & Kitchen,Item 21,26,4719,122694
+ORD-1019,2026-02-20,Hyderabad,Stationery,Item 8,38,3661,139118
+ORD-1020,2026-03-10,Faisalabad,Electronics,Item 12,24,3253,78072
+ORD-1021,2026-04-04,Multan,Apparel,Item 25,32,7916,253312
+ORD-1022,2026-05-05,Peshawar,Groceries,Item 3,4,3750,15000
+ORD-1023,2026-06-18,Quetta,Home & Kitchen,Item 5,40,2097,83880
+ORD-1024,2026-01-05,Karachi,Stationery,Item 28,19,5397,102543
+ORD-1025,2026-02-25,Lahore,Electronics,Item 27,35,8032,281120
+ORD-1026,2026-03-01,Islamabad,Apparel,Item 8,31,2587,80197
+ORD-1027,2026-04-18,Hyderabad,Groceries,Item 8,4,164,656
+ORD-1028,2026-05-20,Faisalabad,Home & Kitchen,Item 8,30,4481,134430
+ORD-1029,2026-06-11,Multan,Stationery,Item 27,35,2231,78085
+ORD-1030,2026-01-01,Peshawar,Electronics,Item 27,6,4480,26880
+ORD-1031,2026-02-02,Quetta,Apparel,Item 27,26,8311,216086
+ORD-1032,2026-03-16,Karachi,Groceries,Item 21,8,8723,69784
+ORD-1033,2026-04-07,Lahore,Home & Kitchen,Item 17,11,2122,23342
+ORD-1034,2026-05-20,Islamabad,Stationery,Item 22,3,6959,20877
+ORD-1035,2026-06-04,Hyderabad,Electronics,Item 28,20,440,8800
+ORD-1036,2026-01-25,Faisalabad,Apparel,Item 2,6,6238,37428
+ORD-1037,2026-02-28,Multan,Groceries,Item 29,35,7773,272055
+ORD-1038,2026-03-08,Peshawar,Home & Kitchen,Item 22,31,3863,119753
+ORD-1039,2026-04-07,Quetta,Stationery,Item 13,35,3675,128625
+ORD-1040,2026-05-10,Karachi,Electronics,Item 19,36,5095,183420
+ORD-1041,2026-06-21,Lahore,Apparel,Item 13,30,3115,93450
+ORD-1042,2026-01-28,Islamabad,Groceries,Item 30,9,2909,26181
+ORD-1043,2026-02-26,Hyderabad,Home & Kitchen,Item 7,26,7869,204594
+ORD-1044,2026-03-14,Faisalabad,Stationery,Item 17,26,1348,35048
+ORD-1045,2026-04-14,Multan,Electronics,Item 6,31,8520,264120
+ORD-1046,2026-05-19,Peshawar,Apparel,Item 16,18,1620,29160
+ORD-1047,2026-06-21,Quetta,Groceries,Item 12,23,4635,106605
+ORD-1048,2026-01-09,Karachi,Home & Kitchen,Item 17,30,380,11400
+ORD-1049,2026-02-09,Lahore,Stationery,Item 8,9,6548,58932
+ORD-1050,2026-03-03,Islamabad,Electronics,Item 23,27,3948,106596
+ORD-1051,2026-04-26,Hyderabad,Apparel,Item 21,33,8252,272316
+ORD-1052,2026-05-22,Faisalabad,Groceries,Item 18,38,373,14174
+ORD-1053,2026-06-02,Multan,Home & Kitchen,Item 5,29,8099,234871
+ORD-1054,2026-01-03,Peshawar,Stationery,Item 1,4,1108,4432
+ORD-1055,2026-02-06,Quetta,Electronics,Item 5,25,8520,213000
+ORD-1056,2026-03-08,Karachi,Apparel,Item 14,9,6123,55107
+ORD-1057,2026-04-19,Lahore,Groceries,Item 23,40,3890,155600
+ORD-1058,2026-05-03,Islamabad,Home & Kitchen,Item 8,16,3835,61360
+ORD-1059,2026-06-05,Hyderabad,Stationery,Item 28,32,8773,280736
+ORD-1060,2026-01-07,Faisalabad,Electronics,Item 18,21,1231,25851
+ORD-1061,2026-02-08,Multan,Apparel,Item 20,8,841,6728
+ORD-1062,2026-03-28,Peshawar,Groceries,Item 3,23,4404,101292
+ORD-1063,2026-04-01,Quetta,Home & Kitchen,Item 1,17,2933,49861
+ORD-1064,2026-05-07,Karachi,Stationery,Item 28,17,958,16286
+ORD-1065,2026-06-13,Lahore,Electronics,Item 26,31,6911,214241
+ORD-1066,2026-01-19,Islamabad,Apparel,Item 18,39,7238,282282
+ORD-1067,2026-02-14,Hyderabad,Groceries,Item 15,15,3752,56280
+ORD-1068,2026-03-19,Faisalabad,Home & Kitchen,Item 19,23,6538,150374
+ORD-1069,2026-04-24,Multan,Stationery,Item 30,29,7978,231362
+ORD-1070,2026-05-27,Peshawar,Electronics,Item 29,18,4460,80280
+ORD-1071,2026-06-10,Quetta,Apparel,Item 27,15,851,12765
+ORD-1072,2026-01-27,Karachi,Groceries,Item 24,29,6682,193778
+ORD-1073,2026-02-23,Lahore,Home & Kitchen,Item 4,9,2258,20322
+ORD-1074,2026-03-18,Islamabad,Stationery,Item 22,37,7232,267584
+ORD-1075,2026-04-25,Hyderabad,Electronics,Item 17,22,4071,89562
+ORD-1076,2026-05-20,Faisalabad,Apparel,Item 14,35,2545,89075
+ORD-1077,2026-06-17,Multan,Groceries,Item 8,16,1810,28960
+ORD-1078,2026-01-10,Peshawar,Home & Kitchen,Item 21,36,7425,267300
+ORD-1079,2026-02-09,Quetta,Stationery,Item 28,35,1176,41160
+ORD-1080,2026-03-12,Karachi,Electronics,Item 2,1,1317,1317
+ORD-1081,2026-04-06,Lahore,Apparel,Item 7,28,8096,226688
+ORD-1082,2026-05-06,Islamabad,Groceries,Item 4,38,6344,241072
+ORD-1083,2026-06-23,Hyderabad,Home & Kitchen,Item 18,25,291,7275
+ORD-1084,2026-01-10,Faisalabad,Stationery,Item 22,30,1283,38490
+ORD-1085,2026-02-17,Multan,Electronics,Item 24,38,4998,189924
+ORD-1086,2026-03-17,Peshawar,Apparel,Item 4,28,6643,186004
+ORD-1087,2026-04-07,Quetta,Groceries,Item 18,3,5577,16731
+ORD-1088,2026-05-18,Karachi,Home & Kitchen,Item 19,11,2124,23364
+ORD-1089,2026-06-25,Lahore,Stationery,Item 3,33,2269,74877
+ORD-1090,2026-01-22,Islamabad,Electronics,Item 20,28,3749,104972
+ORD-1091,2026-02-26,Hyderabad,Apparel,Item 16,32,1076,34432
+ORD-1092,2026-03-24,Faisalabad,Groceries,Item 24,33,3911,129063
+ORD-1093,2026-04-24,Multan,Home & Kitchen,Item 7,29,8184,237336
+ORD-1094,2026-05-04,Peshawar,Stationery,Item 29,29,1518,44022
+ORD-1095,2026-06-03,Quetta,Electronics,Item 9,38,650,24700
+ORD-1096,2026-01-27,Karachi,Apparel,Item 9,38,7847,298186
+ORD-1097,2026-02-14,Lahore,Groceries,Item 17,9,414,3726
+ORD-1098,2026-03-14,Islamabad,Home & Kitchen,Item 8,7,3010,21070
+ORD-1099,2026-04-04,Hyderabad,Stationery,Item 19,3,543,1629
+ORD-1100,2026-05-21,Faisalabad,Electronics,Item 16,19,7302,138738
+ORD-1101,2026-06-18,Multan,Apparel,Item 29,28,3584,100352
+ORD-1102,2026-01-20,Peshawar,Groceries,Item 18,31,8664,268584
+ORD-1103,2026-02-03,Quetta,Home & Kitchen,Item 22,32,1665,53280
+ORD-1104,2026-03-16,Karachi,Stationery,Item 12,26,3966,103116
+ORD-1105,2026-04-03,Lahore,Electronics,Item 3,20,1229,24580
+ORD-1106,2026-05-06,Islamabad,Apparel,Item 20,15,3200,48000
+ORD-1107,2026-06-01,Hyderabad,Groceries,Item 25,6,612,3672
+ORD-1108,2026-01-22,Faisalabad,Home & Kitchen,Item 10,35,543,19005
+ORD-1109,2026-02-23,Multan,Stationery,Item 1,17,8187,139179
+ORD-1110,2026-03-18,Peshawar,Electronics,Item 13,40,1969,78760
+ORD-1111,2026-04-21,Quetta,Apparel,Item 23,2,1678,3356
+ORD-1112,2026-05-23,Karachi,Groceries,Item 10,11,7739,85129
+ORD-1113,2026-06-08,Lahore,Home & Kitchen,Item 27,19,2795,53105
+ORD-1114,2026-01-14,Islamabad,Stationery,Item 26,35,6152,215320
+ORD-1115,2026-02-22,Hyderabad,Electronics,Item 29,33,7346,242418
+ORD-1116,2026-03-20,Faisalabad,Apparel,Item 10,28,2676,74928
+ORD-1117,2026-04-24,Multan,Groceries,Item 20,35,1592,55720
+ORD-1118,2026-05-22,Peshawar,Home & Kitchen,Item 25,33,4282,141306
+ORD-1119,2026-06-06,Quetta,Stationery,Item 2,3,2202,6606
+ORD-1120,2026-01-18,Karachi,Electronics,Item 26,24,7335,176040

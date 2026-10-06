@@ -1,0 +1,41 @@
+Order Date,Customer,Region,Product,Qty,Amount
+2026-01-02,Customer 40,Quetta,Apparel,1,531
+2026-01-02,Customer 27,Multan,Groceries,3,5817
+2026-01-02,Customer 50,Peshawar,Groceries,10,16930
+2026-01-18,Customer 6,Islamabad,Home & Kitchen,3,2346
+2026-01-26,Customer 2,Peshawar,Apparel,7,18249
+2026-01-25,Customer 38,Islamabad,Groceries,1,1726
+2026-01-12,Customer 58,Peshawar,Stationery,7,24983
+2026-01-08,Customer 31,Faisalabad,Apparel,2,5082
+2026-01-12,Customer 37,Peshawar,Apparel,4,3596
+2026-01-07,Customer 4,Peshawar,Home & Kitchen,3,8400
+2026-01-03,Customer 37,Peshawar,Apparel,10,20760
+2026-01-22,Customer 40,Quetta,Electronics,5,4830
+2026-01-24,Customer 38,Lahore,Groceries,10,20630
+2026-01-19,Customer 17,Lahore,Electronics,9,17910
+2026-01-19,Customer 49,Peshawar,Home & Kitchen,11,33902
+2026-01-19,Customer 45,Multan,Groceries,5,13705
+2026-01-17,Customer 11,Peshawar,Home & Kitchen,9,11025
+2026-01-05,Customer 51,Islamabad,Apparel,5,17740
+2026-01-21,Customer 7,Multan,Home & Kitchen,9,4509
+2026-01-12,Customer 12,Karachi,Apparel,9,18981
+2026-01-17,Customer 38,Karachi,Groceries,12,14868
+2026-01-04,Customer 15,Faisalabad,Apparel,12,45768
+2026-01-07,Customer 50,Hyderabad,Stationery,3,4335
+2026-01-23,Customer 26,Hyderabad,Stationery,1,2704
+2026-01-19,Customer 21,Peshawar,Home & Kitchen,9,4500
+2026-01-02,Customer 29,Islamabad,Home & Kitchen,7,15498
+2026-01-27,Customer 54,Multan,Groceries,1,2569
+2026-01-19,Customer 50,Islamabad,Home & Kitchen,7,26607
+2026-01-21,Customer 49,Multan,Home & Kitchen,9,7596
+2026-01-12,Customer 57,Lahore,Home & Kitchen,7,11235
+2026-01-13,Customer 3,Multan,Electronics,7,14728
+2026-01-02,Customer 12,Faisalabad,Home & Kitchen,2,6834
+2026-01-02,Customer 24,Karachi,Stationery,3,10320
+2026-01-26,Customer 59,Peshawar,Apparel,7,21504
+2026-01-28,Customer 16,Peshawar,Apparel,7,27405
+2026-01-14,Customer 3,Islamabad,Groceries,6,18588
+2026-01-11,Customer 33,Peshawar,Groceries,11,43120
+2026-01-13,Customer 30,Islamabad,Apparel,8,4864
+2026-01-11,Customer 24,Peshawar,Groceries,6,21630
+2026-01-07,Customer 48,Islamabad,Groceries,2,3948

@@ -1,0 +1,41 @@
+Order Date,Customer,Region,Product,Qty,Amount
+2026-02-15,Customer 20,Lahore,Groceries,8,17952
+2026-02-04,Customer 49,Lahore,Stationery,9,17226
+2026-02-15,Customer 28,Faisalabad,Electronics,8,16176
+2026-02-13,Customer 44,Hyderabad,Electronics,11,23452
+2026-02-27,Customer 27,Hyderabad,Apparel,6,5160
+2026-02-22,Customer 18,Quetta,Apparel,6,8442
+2026-02-18,Customer 56,Peshawar,Stationery,11,21659
+2026-02-14,Customer 14,Multan,Home & Kitchen,4,7356
+2026-02-16,Customer 59,Karachi,Home & Kitchen,10,28240
+2026-02-10,Customer 26,Peshawar,Stationery,8,21032
+2026-02-22,Customer 12,Faisalabad,Groceries,8,29328
+2026-02-25,Customer 14,Multan,Home & Kitchen,9,6696
+2026-02-24,Customer 40,Karachi,Apparel,9,22068
+2026-02-01,Customer 9,Peshawar,Groceries,8,8400
+2026-02-18,Customer 2,Faisalabad,Apparel,8,13032
+2026-02-17,Customer 31,Peshawar,Apparel,5,18415
+2026-02-14,Customer 55,Faisalabad,Home & Kitchen,6,6018
+2026-02-04,Customer 48,Hyderabad,Apparel,12,29988
+2026-02-20,Customer 7,Peshawar,Groceries,7,22988
+2026-02-20,Customer 36,Peshawar,Apparel,10,22310
+2026-02-20,Customer 17,Islamabad,Home & Kitchen,10,23010
+2026-02-19,Customer 38,Faisalabad,Apparel,4,14612
+2026-02-07,Customer 50,Quetta,Home & Kitchen,12,13536
+2026-02-04,Customer 22,Multan,Stationery,3,1755
+2026-02-14,Customer 4,Karachi,Groceries,10,25660
+2026-02-12,Customer 26,Islamabad,Groceries,1,2976
+2026-02-01,Customer 58,Peshawar,Home & Kitchen,4,14952
+2026-02-06,Customer 22,Karachi,Home & Kitchen,5,20000
+2026-02-06,Customer 27,Faisalabad,Groceries,12,14616
+2026-02-22,Customer 25,Karachi,Groceries,10,13190
+2026-02-26,Customer 36,Peshawar,Electronics,4,12488
+2026-02-21,Customer 1,Islamabad,Home & Kitchen,8,17592
+2026-02-05,Customer 20,Karachi,Apparel,11,29876
+2026-02-04,Customer 53,Hyderabad,Apparel,10,21580
+2026-02-22,Customer 17,Islamabad,Groceries,4,4368
+2026-02-08,Customer 58,Quetta,Electronics,3,7986
+2026-02-18,Customer 37,Lahore,Stationery,7,22505
+2026-02-22,Customer 57,Lahore,Home & Kitchen,4,13504
+2026-02-10,Customer 46,Quetta,Home & Kitchen,6,21708
+2026-02-10,Customer 26,Lahore,Groceries,11,8448
