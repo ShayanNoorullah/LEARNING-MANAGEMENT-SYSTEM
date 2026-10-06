@@ -6,8 +6,8 @@
    3) Set enabled:false to run fully offline. */
 window.SDC_CLOUD_CONFIG = {
   enabled: true,
-  url: 'https://kjbramwiuiwytriedzlk.supabase.co',
-  anonKey: 'sb_publishable_GxOrHTg0VS-oKImvdz633w_OZos27Zv',
-  table: 'ead_app_state',
+  url: 'https://idchielsujwfqhiwbsui.supabase.co',
+  anonKey: 'sb_publishable_-vM6GOFTc5IwkY4Dhbuaqw_7v2z3bBk',
+  table: 'sdc_learn_state',
   stateId: 'sdc-learn-main'
 };

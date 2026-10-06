@@ -55,7 +55,7 @@ Then, under **People → Roles & permissions**, review the roles (see [docs/IMPL
 Without Supabase, all data lives in each browser separately. With it, every device reads and writes the same data.
 
 1. Create a project at supabase.com.
-2. In the SQL Editor, run `supabase/schema.sql`. It creates the `ead_app_state` table (the name is kept for compatibility with existing projects).
+2. In the SQL Editor, run `supabase/schema.sql`. It creates the `sdc_learn_state` table with row-level security limited to the single app row, so it can safely live in a project shared with another app.
 3. Copy the **Project URL** and the **publishable (anon) key** from the project's API settings. Never use the `service_role` key in the browser.
 4. Edit `js/cloud-config.js`:
 
@@ -64,14 +64,14 @@ Without Supabase, all data lives in each browser separately. With it, every devi
      enabled: true,
      url: 'https://YOUR-PROJECT.supabase.co',
      anonKey: 'YOUR_PUBLISHABLE_KEY',
-     table: 'ead_app_state',
+     table: 'sdc_learn_state',
      stateId: 'sdc-learn-main'
    };
    ```
 
 5. Reload the app. **Settings → Data → Cloud sync** should show "Connected", and the table gets a row with id `sdc-learn-main`.
 
-Set `enabled: false` to run fully offline. The included policies are for evaluation; read `supabase/PRODUCTION_SECURITY_NOTES.md` before going public.
+The hosted deployment uses the Supabase project `idchielsujwfqhiwbsui` (shared with another app; SDC Learn only uses `sdc_learn_state`). Set `enabled: false` to run fully offline. The included policies are for evaluation; read `supabase/PRODUCTION_SECURITY_NOTES.md` before going public.
 
 ## 6. Sign in with Google
 

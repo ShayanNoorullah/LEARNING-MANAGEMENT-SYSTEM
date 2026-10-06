@@ -1,21 +1,30 @@
--- SDC Learn - Supabase PostgreSQL schema (cloud sync state table)
--- Run this file in Supabase SQL Editor.
+-- SDC Learn - Supabase schema for browser cloud sync (one shared state row).
+-- Run in the Supabase SQL Editor. Safe to add to a project that hosts other apps:
+-- it creates one table and policies that only touch that table's single row.
 
-create table if not exists public.ead_app_state (
+create table if not exists public.sdc_learn_state (
   id text primary key,
   state jsonb not null,
   updated_at timestamptz not null default now()
 );
 
-alter table public.ead_app_state enable row level security;
+alter table public.sdc_learn_state enable row level security;
 
--- DEMO/PROTOTYPE POLICIES: allow the configured browser project to read/write the
--- shared JSON state. For production, remove these and use Supabase Auth + strict RLS.
-drop policy if exists "ead demo read" on public.ead_app_state;
-drop policy if exists "ead demo insert" on public.ead_app_state;
-drop policy if exists "ead demo update" on public.ead_app_state;
-create policy "ead demo read" on public.ead_app_state for select to anon, authenticated using (true);
-create policy "ead demo insert" on public.ead_app_state for insert to anon, authenticated with check (true);
-create policy "ead demo update" on public.ead_app_state for update to anon, authenticated using (true) with check (true);
+-- EVALUATION POLICIES: the browser (publishable key) may read and write the single
+-- 'sdc-learn-main' row; deletes are blocked and the state must contain a users array.
+-- For a public production launch see supabase/PRODUCTION_SECURITY_NOTES.md.
+drop policy if exists "sdc_learn read" on public.sdc_learn_state;
+drop policy if exists "sdc_learn insert" on public.sdc_learn_state;
+drop policy if exists "sdc_learn update" on public.sdc_learn_state;
+create policy "sdc_learn read" on public.sdc_learn_state
+  for select to anon, authenticated using (id = 'sdc-learn-main');
+create policy "sdc_learn insert" on public.sdc_learn_state
+  for insert to anon, authenticated
+  with check (id = 'sdc-learn-main' and jsonb_typeof(state -> 'users') = 'array');
+create policy "sdc_learn update" on public.sdc_learn_state
+  for update to anon, authenticated
+  using (id = 'sdc-learn-main')
+  with check (id = 'sdc-learn-main' and jsonb_typeof(state -> 'users') = 'array');
 
--- Optional: limit prototype state to the single shared application row.
+revoke delete, truncate on public.sdc_learn_state from anon, authenticated;
+grant select, insert, update on public.sdc_learn_state to anon, authenticated;
