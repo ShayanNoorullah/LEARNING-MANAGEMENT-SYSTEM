@@ -619,6 +619,9 @@ details summary { cursor: pointer; color: var(--muted); margin-top: 8px; }
 .google-btn { gap: 10px; font-weight: 650; background: var(--surface); }
 .google-btn:hover:not(:disabled) { border-color: var(--primary); background: var(--surface); box-shadow: 0 6px 16px -10px rgba(16,24,40,.35); }
 .divider-tight { margin: clamp(10px, 2vh, 16px) 0 2px; }
+.legal { max-width: 760px; }
+.legal h2 { font-size: 1.05rem; margin-top: 10px; }
+.legal ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
 .verify-plate { justify-self: center; } .verify-plate img { height: 64px; }
 
 /* verify */
