@@ -1,1 +1,14 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=login.html"><title>EAD University</title></head><body style="font-family:system-ui;background:#F7F3EA;color:#3B2416;display:grid;place-items:center;height:100vh"><p>Opening EAD University Portal… <a href="login.html">Continue</a></p><script src="js/portal-enhancements.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SDC Learn</title>
+  <link rel="icon" href="assets/brand/sdc-logo.png">
+  <script>
+    try { location.replace((sessionStorage.getItem('sdcSession') || localStorage.getItem('sdcRemember')) ? 'app.html' : 'login.html'); }
+    catch (e) { location.replace('login.html'); }
+  </script>
+</head>
+<body><p style="font-family:system-ui;padding:24px">Opening SDC Learn… <a href="login.html">Continue</a></p></body>
+</html>

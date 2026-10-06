@@ -1,4 +1,4 @@
--- Optional Neon state store used by the EAD backend.
+-- Optional Neon state store used by the SDC Learn backend.
 CREATE TABLE IF NOT EXISTS ead_portal_state (
   id TEXT PRIMARY KEY,
   state JSONB NOT NULL,

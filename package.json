@@ -1,13 +1,14 @@
 {
-  "name": "ead-university-management-portal",
-  "version": "1.0.0",
+  "name": "sdc-learn",
+  "version": "2.0.0",
   "private": true,
-  "description": "EAD University Management Portal with a Vanilla JavaScript frontend and Express backend.",
+  "description": "SDC Learn — online learning platform for Skill Development Council Karachi (Vanilla JS frontend + Express API).",
   "main": "backend/server.js",
   "scripts": {
     "start": "node backend/server.js",
     "dev": "node --watch backend/server.js",
-    "check": "node --check backend/server.js && node --check js/app.js && node --check js/database.js"
+    "check": "node --check backend/server.js && node --check js/core.js && node --check js/seed.js && node --check js/shell.js && node --check js/pages-learn.js && node --check js/pages-manage.js && node --check js/pages-users.js && node --check js/pages-ops.js && node --check js/login.js && node --check js/cloud-sync.js",
+    "test": "node tests/core.test.js"
   },
   "dependencies": {
     "@simplewebauthn/server": "^10.0.1",

@@ -1,0 +1,91 @@
+Order ID,Order Date,Ship Mode,Segment,City,Region,Category,Sub-Category,Sales,Quantity,Discount,Profit
+PK-5000,2026-08-24,First Class,Consumer,Karachi,South,Furniture,Tables,44,6,0.3,-2
+PK-5001,2026-02-27,First Class,Corporate,Lahore,Central,Office Supplies,Storage,2035,2,0.1,386
+PK-5002,2026-06-08,First Class,Home Office,Islamabad,North,Technology,Phones,1112,1,0.1,61
+PK-5003,2026-04-20,Second Class,Consumer,Hyderabad,South,Furniture,Chairs,988,7,0.2,25
+PK-5004,2026-05-05,Standard,Corporate,Faisalabad,Central,Office Supplies,Paper,465,3,0.2,16
+PK-5005,2026-06-08,Second Class,Home Office,Multan,North,Technology,Phones,1701,6,0.2,33
+PK-5006,2026-06-17,Standard,Consumer,Peshawar,South,Furniture,Tables,307,4,0,38
+PK-5007,2026-07-15,First Class,Corporate,Quetta,Central,Office Supplies,Binders,299,7,0,35
+PK-5008,2026-03-12,First Class,Home Office,Karachi,North,Technology,Phones,541,4,0.1,81
+PK-5009,2026-08-09,Second Class,Consumer,Lahore,South,Furniture,Tables,1400,3,0,312
+PK-5010,2026-07-02,Standard,Corporate,Islamabad,Central,Office Supplies,Paper,1664,3,0.2,100
+PK-5011,2026-08-27,First Class,Home Office,Hyderabad,North,Technology,Machines,1886,6,0,462
+PK-5012,2026-05-24,Standard,Consumer,Faisalabad,South,Furniture,Tables,1609,3,0.2,52
+PK-5013,2026-02-09,Standard,Corporate,Multan,Central,Office Supplies,Binders,1303,2,0.1,153
+PK-5014,2026-02-27,First Class,Home Office,Peshawar,North,Technology,Machines,2161,4,0.1,150
+PK-5015,2026-03-19,Second Class,Consumer,Quetta,South,Furniture,Chairs,1211,3,0,195
+PK-5016,2026-05-01,First Class,Corporate,Karachi,Central,Office Supplies,Paper,1378,6,0.2,40
+PK-5017,2026-07-07,Second Class,Home Office,Lahore,North,Technology,Accessories,49,2,0.2,3
+PK-5018,2026-07-14,Second Class,Consumer,Islamabad,South,Furniture,Tables,2041,7,0.1,111
+PK-5019,2026-08-06,First Class,Corporate,Hyderabad,Central,Office Supplies,Binders,1759,8,0.3,-53
+PK-5020,2026-04-18,First Class,Home Office,Faisalabad,North,Technology,Machines,799,6,0.3,-16
+PK-5021,2026-04-01,Second Class,Consumer,Multan,South,Furniture,Chairs,562,7,0.3,-16
+PK-5022,2026-05-09,Standard,Corporate,Peshawar,Central,Office Supplies,Binders,128,8,0.2,7
+PK-5023,2026-04-23,Second Class,Home Office,Quetta,North,Technology,Phones,2040,3,0.1,284
+PK-5024,2026-04-17,Standard,Consumer,Karachi,South,Furniture,Tables,1578,8,0.2,70
+PK-5025,2026-09-11,Standard,Corporate,Lahore,Central,Office Supplies,Binders,1108,9,0.1,198
+PK-5026,2026-03-18,First Class,Home Office,Islamabad,North,Technology,Accessories,1256,3,0.2,63
+PK-5027,2026-04-26,First Class,Consumer,Hyderabad,South,Furniture,Chairs,2450,4,0.1,283
+PK-5028,2026-08-18,Second Class,Corporate,Faisalabad,Central,Office Supplies,Binders,2100,4,0.2,100
+PK-5029,2026-06-05,Second Class,Home Office,Multan,North,Technology,Accessories,442,7,0.1,72
+PK-5030,2026-03-06,First Class,Consumer,Peshawar,South,Furniture,Tables,575,8,0.2,23
+PK-5031,2026-08-12,Standard,Corporate,Quetta,Central,Office Supplies,Storage,1578,6,0.3,-59
+PK-5032,2026-08-11,First Class,Home Office,Karachi,North,Technology,Phones,804,6,0,77
+PK-5033,2026-07-23,Second Class,Consumer,Lahore,South,Furniture,Bookcases,551,6,0.1,55
+PK-5034,2026-08-17,First Class,Corporate,Islamabad,Central,Office Supplies,Paper,1847,2,0.3,-118
+PK-5035,2026-09-25,First Class,Home Office,Hyderabad,North,Technology,Machines,1785,2,0.1,209
+PK-5036,2026-04-25,Second Class,Consumer,Faisalabad,South,Furniture,Tables,1652,5,0.3,-49
+PK-5037,2026-05-26,Second Class,Corporate,Multan,Central,Office Supplies,Paper,1639,5,0.2,103
+PK-5038,2026-02-18,First Class,Home Office,Peshawar,North,Technology,Phones,628,1,0.1,110
+PK-5039,2026-05-04,Second Class,Consumer,Quetta,South,Furniture,Tables,27,3,0.2,1
+PK-5040,2026-02-28,Second Class,Corporate,Karachi,Central,Office Supplies,Binders,1563,5,0.3,-82
+PK-5041,2026-08-02,Second Class,Home Office,Lahore,North,Technology,Accessories,1893,5,0.3,-29
+PK-5042,2026-04-20,First Class,Consumer,Islamabad,South,Furniture,Bookcases,2216,7,0,229
+PK-5043,2026-03-23,First Class,Corporate,Hyderabad,Central,Office Supplies,Paper,1618,7,0.3,-87
+PK-5044,2026-08-02,Standard,Home Office,Faisalabad,North,Technology,Machines,1137,8,0.3,-22
+PK-5045,2026-06-19,First Class,Consumer,Multan,South,Furniture,Chairs,839,4,0.2,29
+PK-5046,2026-04-16,Standard,Corporate,Peshawar,Central,Office Supplies,Binders,386,6,0.3,-8
+PK-5047,2026-06-21,Standard,Home Office,Quetta,North,Technology,Accessories,1828,2,0.1,209
+PK-5048,2026-07-13,First Class,Consumer,Karachi,South,Furniture,Bookcases,2270,4,0.2,77
+PK-5049,2026-09-18,Second Class,Corporate,Lahore,Central,Office Supplies,Storage,1946,7,0,563
+PK-5050,2026-04-09,Standard,Home Office,Islamabad,North,Technology,Machines,178,3,0,13
+PK-5051,2026-08-21,Second Class,Consumer,Hyderabad,South,Furniture,Chairs,1524,6,0.2,89
+PK-5052,2026-01-17,Second Class,Corporate,Faisalabad,Central,Office Supplies,Binders,2395,5,0.1,276
+PK-5053,2026-02-03,Second Class,Home Office,Multan,North,Technology,Accessories,1944,5,0,264
+PK-5054,2026-07-08,Second Class,Consumer,Peshawar,South,Furniture,Tables,1891,5,0.1,166
+PK-5055,2026-07-13,Standard,Corporate,Quetta,Central,Office Supplies,Storage,2117,7,0.2,74
+PK-5056,2026-02-26,Second Class,Home Office,Karachi,North,Technology,Accessories,998,3,0.1,166
+PK-5057,2026-03-24,Second Class,Consumer,Lahore,South,Furniture,Bookcases,2264,5,0.1,433
+PK-5058,2026-06-01,Second Class,Corporate,Islamabad,Central,Office Supplies,Binders,2222,6,0.1,342
+PK-5059,2026-06-19,Standard,Home Office,Hyderabad,North,Technology,Accessories,2006,6,0.1,322
+PK-5060,2026-03-28,First Class,Consumer,Faisalabad,South,Furniture,Tables,226,8,0.2,12
+PK-5061,2026-04-20,First Class,Corporate,Multan,Central,Office Supplies,Binders,1345,7,0.2,69
+PK-5062,2026-02-07,First Class,Home Office,Peshawar,North,Technology,Phones,2296,3,0.2,112
+PK-5063,2026-01-11,First Class,Consumer,Quetta,South,Furniture,Tables,2282,7,0.1,205
+PK-5064,2026-07-23,Standard,Corporate,Karachi,Central,Office Supplies,Storage,1651,3,0,469
+PK-5065,2026-04-15,Standard,Home Office,Lahore,North,Technology,Accessories,1300,7,0,100
+PK-5066,2026-05-05,First Class,Consumer,Islamabad,South,Furniture,Tables,475,5,0.1,88
+PK-5067,2026-08-11,Second Class,Corporate,Hyderabad,Central,Office Supplies,Binders,2239,3,0.2,119
+PK-5068,2026-08-22,Second Class,Home Office,Faisalabad,North,Technology,Accessories,210,1,0,26
+PK-5069,2026-04-18,First Class,Consumer,Multan,South,Furniture,Tables,1749,5,0.1,168
+PK-5070,2026-03-24,Second Class,Corporate,Peshawar,Central,Office Supplies,Binders,858,9,0.1,104
+PK-5071,2026-08-09,Standard,Home Office,Quetta,North,Technology,Machines,2376,3,0.2,140
+PK-5072,2026-02-23,Second Class,Consumer,Karachi,South,Furniture,Bookcases,1797,6,0.1,246
+PK-5073,2026-02-07,Second Class,Corporate,Lahore,Central,Office Supplies,Binders,1895,4,0.2,109
+PK-5074,2026-02-05,Standard,Home Office,Islamabad,North,Technology,Accessories,1227,1,0,97
+PK-5075,2026-02-18,First Class,Consumer,Hyderabad,South,Furniture,Bookcases,880,5,0,113
+PK-5076,2026-02-14,Standard,Corporate,Faisalabad,Central,Office Supplies,Paper,206,6,0.1,24
+PK-5077,2026-05-26,Second Class,Home Office,Multan,North,Technology,Accessories,627,2,0.1,73
+PK-5078,2026-08-13,Standard,Consumer,Peshawar,South,Furniture,Tables,1932,9,0.1,340
+PK-5079,2026-03-05,Standard,Corporate,Quetta,Central,Office Supplies,Binders,2061,2,0.2,40
+PK-5080,2026-09-27,Standard,Home Office,Karachi,North,Technology,Machines,1603,2,0.2,86
+PK-5081,2026-04-23,Standard,Consumer,Lahore,South,Furniture,Chairs,1448,2,0,354
+PK-5082,2026-03-11,Second Class,Corporate,Islamabad,Central,Office Supplies,Binders,1052,8,0,143
+PK-5083,2026-03-24,Standard,Home Office,Hyderabad,North,Technology,Machines,362,6,0.3,-9
+PK-5084,2026-04-17,First Class,Consumer,Faisalabad,South,Furniture,Bookcases,1857,2,0,149
+PK-5085,2026-05-18,Second Class,Corporate,Multan,Central,Office Supplies,Paper,1045,8,0.2,47
+PK-5086,2026-08-26,Second Class,Home Office,Peshawar,North,Technology,Phones,1431,7,0.2,80
+PK-5087,2026-08-17,First Class,Consumer,Quetta,South,Furniture,Tables,343,1,0.1,58
+PK-5088,2026-06-12,Second Class,Corporate,Karachi,Central,Office Supplies,Binders,2344,2,0.2,130
+PK-5089,2026-04-17,Second Class,Home Office,Lahore,North,Technology,Phones,2256,6,0.3,-52

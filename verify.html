@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Verify a certificate · SDC Learn</title>
+  <link rel="icon" href="assets/brand/sdc-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="verify-page">
+  <main class="verify">
+    <a class="logo-plate verify-plate" href="login.html"><img data-lockup alt="Skill Development Council Karachi"></a>
+    <div class="card verify-card">
+      <h1>Certificate verification</h1>
+      <p class="muted">Enter the certificate number printed on the certificate (for example <code>SDC-2026-0001</code>).</p>
+      <form id="vf" class="row gap-sm" novalidate><input class="input input-lg grow" id="code" placeholder="Certificate number" aria-label="Certificate number" autocomplete="off" required><button class="btn btn-primary btn-lg">Verify</button></form>
+      <div id="result" aria-live="polite"></div>
+    </div>
+    <p class="small muted center" data-foot></p>
+  </main>
+  <script src="js/seed.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/cloud-config.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/cloud-sync.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      applyTheme();
+      const b = brand(), out = document.getElementById('result'), input = document.getElementById('code');
+      document.querySelectorAll('[data-lockup]').forEach(i => i.src = resolveAsset(b.lockupUrl || b.logoUrl));
+      document.querySelector('[data-foot]').innerHTML = `${esc(b.orgName)} · ${esc(b.phone)} · <a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`;
+      const check = async () => {
+        const code = input.value.trim().toUpperCase();
+        if (!code) { out.innerHTML = ''; return; }
+        out.innerHTML = '<p class="muted"><span class="spinner"></span> Checking…</p>';
+        try { await window.SDCCloud?.ready; } catch (e) {}
+        invalidateCache();
+        const cert = db().certificates.find(c => String(c.code).toUpperCase() === code);
+        if (!cert) { out.innerHTML = `<div class="verify-result bad">${icon('x', 22)}<div><b>No certificate found</b><p class="small">Check the number and try again, or contact ${esc(b.email)}.</p></div></div>`; return; }
+        const l = findRecord('users', cert.learnerId), c = findRecord('courses', cert.courseId), ok = cert.status === 'Valid';
+        out.innerHTML = `<div class="verify-result ${ok ? 'good' : 'bad'}">${icon(ok ? 'check' : 'alert', 22)}<div><b>${ok ? 'Valid certificate' : 'This certificate has been revoked'}</b><dl class="facts"><div><dt>Certificate no.</dt><dd>${esc(cert.code)}</dd></div><div><dt>Awarded to</dt><dd>${esc(l?.name || '—')}</dd></div><div><dt>Course</dt><dd>${esc(c?.title || '—')}</dd></div><div><dt>Issued</dt><dd>${fmtDate(cert.issuedAt)}</dd></div>${cert.grade ? `<div><dt>Grade</dt><dd>${esc(cert.grade)}</dd></div>` : ''}</dl></div></div>`;
+        history.replaceState(null, '', `?code=${encodeURIComponent(code)}`);
+      };
+      document.getElementById('vf').onsubmit = e => { e.preventDefault(); check(); };
+      const pre = new URLSearchParams(location.search).get('code');
+      if (pre) { input.value = pre; check(); }
+    });
+  </script>
+</body>
+</html>

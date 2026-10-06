@@ -1,0 +1,10 @@
+SDC LEARN — Assignment 1: Pivot analysis of regional sales
+------------------------------------------------------------
+Dataset: excel-03-regional-sales.csv
+Answer using PivotTables:
+ 1. Which region had the highest Actual sales for the year?
+ 2. Which sales rep beat their Target by the largest %?
+ 3. Show Actual vs Target by Quarter for each Category.
+ 4. Which region/category combinations missed target in Q4?
+ 5. Add a slicer for Region and a PivotChart for the Q1–Q4 trend.
+Submit one .xlsx workbook via "Submit Assignment" on the course page. Marks: 20.

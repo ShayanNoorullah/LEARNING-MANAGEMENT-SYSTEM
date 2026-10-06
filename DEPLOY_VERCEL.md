@@ -1,4 +1,4 @@
-# Deploy EAD University Portal on Vercel
+# Deploy SDC Learn on Vercel
 
 The static portal (HTML/CSS/JS) is served by Vercel's CDN. Every `/api/*` and `/uploads/*`
 request is routed to one serverless function (`api/index.js`), which loads the Express app
