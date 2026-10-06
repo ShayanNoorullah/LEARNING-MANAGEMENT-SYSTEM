@@ -181,7 +181,9 @@
     await go('#/course/C-EXCEL/submit?assignment=A-EX-1'); $('#sub-e').value = 'wrong@x.com';
     const dt = new DataTransfer(); dt.items.add(new File(['a,b\n1,2'], 'qa.csv')); $('.dropzone').dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
     await click('[data-submit]'); check(!Domain.submissionFor('A-EX-1', 'u-ali'), 'wrong email accepted');
-    $('#sub-e').value = 'learner@sdclearn.demo'; await click('[data-submit]'); await W(800); check(Domain.submissionFor('A-EX-1', 'u-ali')?.status, 'not submitted');
+    $('#sub-e').value = 'learner@sdclearn.demo'; await click('[data-submit]');
+    for (let i = 0; i < 75 && !/Submission received/.test($('#main').innerText); i++) await W(200); // real uploads can take a few seconds on hosted servers
+    check(Domain.submissionFor('A-EX-1', 'u-ali')?.status, 'not submitted: ' + ($('.toast-error')?.innerText || 'no confirmation'));
   });
   await step('Learner: notifications, profile, password change', async () => {
     await go('#/notifications'); await click('[data-all]'); check(!fresh().notifications.some(n => n.userId === 'u-ali' && !n.read), 'unread remain');
