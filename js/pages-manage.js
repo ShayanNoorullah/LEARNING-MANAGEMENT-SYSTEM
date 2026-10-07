@@ -124,8 +124,7 @@ function courseFields(isAdmin) {
     { name: 'status', label: 'Status', type: 'select', options: [{ value: 'draft', label: 'Draft' }, { value: 'published', label: 'Published' }, { value: 'archived', label: 'Archived' }], placeholderOption: false, hidden: !can('courses', 'publish') },
     { name: 'instructorIds', label: t('instructors'), type: 'multiselect', options: opt.instructors, hidden: !isAdmin },
     { name: 'startDate', label: 'Start date', type: 'date' },
-    { name: 'endDate', label: 'End date', type: 'date' },
-    { name: 'duration', label: 'Duration', placeholder: 'e.g. 8 weeks · 16 hours' },
+    { name: 'endDate', label: 'End date', type: 'date', help: 'Filled from the start date and the program duration; you can still change it.' },
     { name: 'schedule', label: 'Schedule', placeholder: 'e.g. Mondays 7–9 PM (PKT)' },
     { name: 'venue', label: 'Venue', placeholder: 'Zoom / SDC Karachi Lab' },
     { name: 'fee', label: `Course ${t('fee', true)} (${lms().currency})`, type: 'number', min: 0, hidden: !isAdmin },
@@ -147,6 +146,11 @@ function courseModal(rec, onSaved) {
     : { programType: pairs(lms().programTypes)[0]?.value, delivery: 'online', status: 'draft', accent: settings().theme.accent, icon: 'book', level: pairs(lms().levels)[0]?.value };
   const m = openModal({ title: rec ? `Edit ${t('course', true)}` : `New ${t('course', true)}`, size: 'lg', body: `<form novalidate>${formHTML(fields, values)}</form>`, footer: `<button class="btn btn-ghost" data-modal-close>Cancel</button><button class="btn btn-primary" data-save>${rec ? 'Save changes' : 'Create ' + t('course', true)}</button>` });
   bindColorFields(m);
+  // 4/5. Picking a program fills its division; the end date follows the start date + program duration.
+  const f = m.querySelector('form'), prog = () => findRecord('programs', f.programId?.value);
+  const fillEnd = () => { const end = endDateFor(f.startDate.value, prog()?.duration); if (end) f.endDate.value = end; };
+  f.programId?.addEventListener('change', () => { if (prog()?.divisionId && f.divisionId) f.divisionId.value = prog().divisionId; fillEnd(); });
+  f.startDate.addEventListener('change', fillEnd);
   m.querySelector('[data-save]').onclick = () => {
     const form = m.querySelector('form'), r = readForm(form, fields);
     if (!r.title) return toast('Title is required.', 'error');

@@ -36,11 +36,17 @@
         const code = tidy(input.value.trim()).replace(/^([A-Z]+-\d{4}-)(\d{1,3})$/, (_, a, n) => a + n.padStart(4, '0')); input.value = code;
         if (!code) { out.innerHTML = ''; return; }
         out.innerHTML = '<p class="muted"><span class="spinner"></span> Checking…</p>';
-        try { await window.SDCCloud?.ready; } catch (e) {}
-        invalidateCache();
-        const cert = db().certificates.find(c => String(c.code).toUpperCase() === code);
+        let cert;
+        if (await window.SDCCloud?.gateway?.()) {
+          const r = await SDCCloud.verify(code).catch(() => ({}));
+          if (r.found) cert = { code: r.code, status: r.status, issuedAt: r.issuedAt, grade: r.grade, learnerName: r.learnerName, courseTitle: r.courseTitle };
+        } else {
+          try { await window.SDCCloud?.ready; } catch (e) {}
+          invalidateCache();
+          cert = db().certificates.find(c => String(c.code).toUpperCase() === code);
+        }
         if (!cert) { out.innerHTML = `<div class="verify-result bad">${icon('x', 22)}<div><b>No certificate found</b><p class="small">Check the number and try again, or contact ${esc(b.email)}.</p></div></div>`; return; }
-        const l = findRecord('users', cert.learnerId), c = findRecord('courses', cert.courseId), ok = cert.status === 'Valid';
+        const l = cert.learnerName !== undefined ? { name: cert.learnerName } : findRecord('users', cert.learnerId), c = cert.courseTitle !== undefined ? { title: cert.courseTitle } : findRecord('courses', cert.courseId), ok = cert.status === 'Valid';
         out.innerHTML = `<div class="verify-result ${ok ? 'good' : 'bad'}">${icon(ok ? 'check' : 'alert', 22)}<div><b>${ok ? 'Valid certificate' : 'This certificate has been revoked'}</b><dl class="facts"><div><dt>Certificate no.</dt><dd>${esc(cert.code)}</dd></div><div><dt>Awarded to</dt><dd>${esc(l?.name || '—')}</dd></div><div><dt>Course</dt><dd>${esc(c?.title || '—')}</dd></div><div><dt>Issued</dt><dd>${fmtDate(cert.issuedAt)}</dd></div>${cert.grade ? `<div><dt>Grade</dt><dd>${esc(cert.grade)}</dd></div>` : ''}</dl></div></div>`;
         history.replaceState(null, '', `?code=${encodeURIComponent(code)}`);
       };

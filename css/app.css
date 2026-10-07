@@ -370,7 +370,7 @@ a.session-row:hover { border-color: var(--border-strong); background: color-mix(
 .session-row.pinned { background: var(--surface-2); border-style: dashed; }
 .session-row.is-today { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); box-shadow: 0 0 0 3px var(--accent-soft); }
 .session-row.locked { opacity: .62; }
-.session-row.muted-row { opacity: .6; }
+.session-row.muted-row, .pick-list .muted-row { opacity: .6; }
 .s-num { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--text-2); font-weight: 700; font-size: .85rem; flex: none; }
 .pinned .s-num { background: var(--surface); color: var(--primary); }
 .s-num.done { background: var(--success-soft); color: var(--success); }
@@ -517,6 +517,8 @@ details summary { cursor: pointer; color: var(--muted); margin-top: 8px; }
 .mail-item.unread b { color: var(--primary); }
 .unread-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-right: 6px; vertical-align: middle; }
 .nowrap { white-space: nowrap; }
+.ann-banner { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; color: var(--text); text-decoration: none !important; border-left: 3px solid var(--primary); }
+.ann-banner > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .mail-item.unread .truncate:first-of-type { font-weight: 700; }
 .mail-view { min-height: 360px; }
 .mail-subject { margin-bottom: 14px; }

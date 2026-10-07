@@ -81,6 +81,14 @@ await (await fetch('tests/e2e.browser.js')).text().then(eval)
 
 It prints a table and returns `{ passed, failed }`. It resets to demo data before and after, and with cloud sync on it also resets the shared Supabase row — **never run it against live data**.
 
+The full SDC test suite (94 cases, results per test-case ID) runs against a local server with puppeteer-core installed:
+
+```bash
+node tests/suite.run.js http://localhost:3000
+```
+
+It blocks all Supabase traffic, so it never touches live data.
+
 ## Troubleshooting
 
 | Problem | Fix |

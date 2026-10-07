@@ -71,7 +71,17 @@ Without Supabase, all data lives in each browser separately. With it, every devi
 
 5. Reload the app. **Settings → Data → Cloud sync** should show "Connected", and the table gets a row with id `sdc-learn-main`.
 
-The hosted deployment uses the Supabase project `idchielsujwfqhiwbsui` (shared with another app; SDC Learn only uses `sdc_learn_state`). Set `enabled: false` to run fully offline. The included policies are for evaluation; read `supabase/PRODUCTION_SECURITY_NOTES.md` before going public.
+The hosted deployment uses the Supabase project `idchielsujwfqhiwbsui` (shared with another app; SDC Learn only uses `sdc_learn_state`). Set `enabled: false` to run fully offline.
+
+### 5a. Lock the data behind the server (required before real use)
+
+`schema.sql` alone lets anyone holding the publishable key read and overwrite the whole state, including password hashes. The server gateway (`backend/state-api.js`) closes that:
+
+1. Generate a long random secret (for example `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`).
+2. Set it as the environment variable **`SDC_STATE_SECRET`** on the server (Vercel → Project → Settings → Environment Variables, Production) and redeploy. `GET /api/sdc/status` then returns `{"gateway":true}`.
+3. Put the secret's SHA-256 in `supabase/gateway.sql` and run that file in the SQL Editor. It removes browser access to the table; only the server can reach it.
+
+With the gateway on, passwords are checked on the server, each browser receives only its own password hash, learners can edit only their own profile, and roles/settings/accounts change only for users holding those permissions. Signing out clears the browser's cached copy. Without `SDC_STATE_SECRET` (e.g. plain local development) the app keeps using the direct mode above.
 
 ## 6. Sign in with Google
 

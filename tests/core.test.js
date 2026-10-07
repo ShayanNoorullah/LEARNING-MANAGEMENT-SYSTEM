@@ -11,8 +11,8 @@ const ctx = {
 ctx.window = ctx; ctx.window.addEventListener = () => {}; ctx.window.dispatchEvent = () => {};
 vm.createContext(ctx);
 const src = ['seed.js', 'core.js'].map(f => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8')).join(';\n');
-vm.runInContext(src + ';globalThis.__x={db,can,kind,Domain,verifyPassword,addRecord,findRecord}', ctx, { filename: 'core-bundle.js' });
-const { db, can, kind, Domain, verifyPassword, addRecord, findRecord } = ctx.__x;
+vm.runInContext(src + ';globalThis.__x={db,can,kind,Domain,verifyPassword,addRecord,findRecord,endDateFor}', ctx, { filename: 'core-bundle.js' });
+const { db, can, kind, Domain, verifyPassword, addRecord, findRecord, endDateFor } = ctx.__x;
 const u = id => findRecord('users', id);
 
 // built-in roles
@@ -43,4 +43,8 @@ const ex = findRecord('enrollments', 'EN-02');
 assert.ok(!Domain.sessionUnlocked(findRecord('sessions', 'S-TB-4'), ex) && Domain.sessionUnlocked(findRecord('sessions', 'S-TB-1'), ex), 'restricted access');
 assert.ok(verifyPassword(u('u-ali'), 'Demo@123') && !verifyPassword(u('u-ali'), 'wrong'));
 assert.ok(db().users.every(x => !x.password), 'no plaintext passwords stored');
+// program duration -> course end date; only held sessions can be completed
+assert.equal(endDateFor('2026-01-01', '3 months'), '2026-03-31'); assert.equal(endDateFor('2026-10-10', '1–2 days'), '2026-10-11'); assert.equal(endDateFor('2026-01-01', 'TBD'), '');
+const future = addRecord('sessions', { courseId: 'C-EXCEL', title: 'F', date: '2999-01-01', published: true });
+assert.equal(Domain.setSessionComplete('u-ali', 'C-EXCEL', future.id, true), false, 'future session cannot be completed');
 console.log('core.test.js: all checks passed');

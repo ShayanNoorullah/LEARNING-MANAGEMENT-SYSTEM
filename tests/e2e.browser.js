@@ -137,9 +137,10 @@
     await click(`[data-del="${a.id}"]`); await confirmYes(); check(!findRecord('announcements', a.id), 'not deleted');
   });
   await step('Certificates: issue, revoke, restore', async () => {
-    await go('#/certificates'); await click('[data-issue]'); modal().querySelector('input[name=pick]').checked = true; await click('[data-ok]', modal());
+    { const d = fresh(); d.results.push({ id: 'RES-E2E', learnerId: 'u-mariam', courseId: 'C-EXCEL', finalPct: 86, grade: 'A', published: true }); saveDB(d); }
+    await go('#/certificates'); await click('[data-issue]'); modal().querySelector('input[name=pick]:not(:disabled)').checked = true; await click('[data-ok]', modal());
     const c = fresh().certificates.find(x => x.code.endsWith('0002')); check(c?.status === 'Valid', 'not issued');
-    await click(`[data-revoke="${c.id}"]`); await confirmYes(); check(findRecord('certificates', c.id).status === 'Revoked', 'not revoked');
+    await click(`[data-revoke="${c.id}"]`); modal().querySelector("textarea").value = "QA"; await confirmYes(); check(findRecord('certificates', c.id).status === 'Revoked', 'not revoked');
     await click(`[data-restore="${c.id}"]`); check(findRecord('certificates', c.id).status === 'Valid', 'not restored');
   });
   await step('Settings: branding, features toggle, grade bands, defaults', async () => {

@@ -60,7 +60,7 @@
     const returning = q.has('code');
     if (returning) { btn.hidden = false; btn.disabled = true; btn.querySelector('span').textContent = 'Signing you in…'; }
     const { data } = await client.auth.getSession();
-    if (data.session?.user?.email) return finishGoogle(client, data.session.user);
+    if (data.session?.user?.email) return finishGoogle(client, data.session.user, data.session.access_token);
     if (returning) { history.replaceState(null, '', location.pathname); btn.disabled = false; btn.querySelector('span').textContent = 'Continue with Google'; }
     try { const r = await fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.anonKey } }); if (!(await r.json()).external?.google) { btn.hidden = true; return; } } catch (e) { btn.hidden = true; return; }
     btn.hidden = false; $('#googleOr').hidden = false;
@@ -70,8 +70,22 @@
       if (error) { showError(error.message); btn.disabled = false; btn.querySelector('span').textContent = 'Continue with Google'; }
     };
   }
-  async function finishGoogle(client, gUser) {
+  async function finishGoogle(client, gUser, accessToken) {
     history.replaceState(null, '', location.pathname);
+    if (await window.SDCCloud?.gateway?.()) {
+      // Gateway: the server checks the Google token and matches (or registers) the account.
+      try {
+        const uid = await SDCCloud.signInGoogle(accessToken);
+        await client.auth.signOut().catch(() => {});
+        sessionStorage.setItem('sdcSession', uid); localStorage.setItem('sdcRemember', uid);
+        updateRecord('users', uid, { lastLoginAt: new Date().toISOString(), avatarUrl: gUser.user_metadata?.avatar_url || currentUser()?.avatarUrl || '' });
+        location.href = 'app.html'; return;
+      } catch (e) {
+        await client.auth.signOut().catch(() => {});
+        const btn = $('#googleBtn'); btn.disabled = false; btn.querySelector('span').textContent = 'Continue with Google';
+        return showError(e.message);
+      }
+    }
     const email = String(gUser.email).toLowerCase(), meta = gUser.user_metadata || {};
     try { await window.SDCCloud?.ready; } catch (e) {} // make sure accounts created on other devices are known
     invalidateCache();
@@ -94,6 +108,7 @@
     if (currentUser()) { location.replace('app.html'); return; }
     setupGoogle();
     paint();
+    window.SDCCloud?.gateway?.().then(on => on && SDCCloud.publicSettings().then(s => { const d = db(); d.settings = s; localStorage.setItem(DBKEY, JSON.stringify(normalizeState(d))); invalidateCache(); paint(); })).catch(() => {});
     window.addEventListener('sdc-cloud-refresh', paint);
     const err = $('#loginError'), btn = $('#loginBtn');
     const show = showError;
@@ -109,7 +124,17 @@
       if (!email.value.trim() || !email.checkValidity()) { show('Please enter a valid email address.'); email.focus(); return; }
       if (!pw.value) { show('Please enter your password.'); pw.focus(); return; }
       btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Signing in…';
-      setTimeout(() => {
+      setTimeout(async () => {
+        if (await window.SDCCloud?.gateway?.()) {
+          try {
+            const uid = await SDCCloud.signIn(email.value.trim(), pw.value, $('#remember').checked);
+            sessionStorage.setItem('sdcSession', uid);
+            if ($('#remember').checked) localStorage.setItem('sdcRemember', uid); else localStorage.removeItem('sdcRemember');
+            updateRecord('users', uid, { lastLoginAt: new Date().toISOString() });
+            location.href = 'app.html';
+          } catch (ex) { show(ex.message); btn.disabled = false; btn.textContent = 'Sign in'; pw.select(); }
+          return;
+        }
         invalidateCache();
         const res = login(email.value, pw.value, $('#remember').checked);
         if (res.ok) { location.href = 'app.html'; return; }

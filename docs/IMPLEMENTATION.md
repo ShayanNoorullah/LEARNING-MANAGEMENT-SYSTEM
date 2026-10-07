@@ -20,6 +20,7 @@ Browser                                                     Server (optional)
 - **No framework, no build step.** Plain HTML, CSS and JavaScript loaded with `<script>` tags in a fixed order.
 - **Browser-first data.** The whole dataset is one JSON object in `localStorage`. Pages read and write it synchronously, so the UI is instant and works offline.
 - **Optional cloud mirror.** `cloud-sync.js` pulls the Supabase copy on load and pushes changes (debounced, one at a time so an old snapshot never overwrites a newer one).
+- **Server gateway.** When the server has `SDC_STATE_SECRET`, every read and write goes through `/api/sdc` (`backend/state-api.js`) with a signed session token. Passwords are checked on the server, each browser receives only its own password hash, learners can change only their own profile, and accounts, roles and settings need the matching permission. The table itself is closed to the browser (`supabase/gateway.sql`). Without the secret the app falls back to direct sync.
 - **Single-page portal.** `app.html` is one page; `#/…` hash routes select which page function renders into `<main>`.
 - **Server only where the browser can't do it:** storing uploaded files.
 
@@ -44,7 +45,8 @@ Browser                                                     Server (optional)
 | `api/index.js`, `vercel.json` | Vercel serverless entry and routing |
 | `assets/brand/` | Logo mark and lockup |
 | `assets/resources/` | Sample session resources used by the demo data |
-| `tests/` | `core.test.js` (Node) and `e2e.browser.js` (browser workflow test) |
+| `backend/state-api.js` | Server gateway: sign-in, state sync, certificate check |
+| `tests/` | `core.test.js`, `gateway.test.js` (Node), `e2e.browser.js` (29 workflows) and `suite.browser.js` + `suite.run.js` (the 94-case SDC test suite) |
 
 ## Data model
 

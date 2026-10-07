@@ -26,7 +26,7 @@ function courseTools(ctx, course, session) {
       <div class="popover popover-panel" data-help-pop hidden>
         <div class="pop-head"><b>Need help?</b><small>Our support team usually replies within one working day.</small></div>
         <div class="pad stack-sm">
-          <a class="btn btn-primary btn-block" href="${esc(help)}" target="_blank" rel="noopener">${icon('external', 16)} Open support form</a>
+          <a class="btn btn-primary btn-block" href="${esc(help)}" target="_blank" rel="noopener">${help.startsWith('mailto:') ? `${icon('mail', 16)} Email support` : `${icon('external', 16)} Open support form`}</a>
           <a class="mini-link" href="tel:${esc(b.phone.split(',')[0].replace(/[^\d+]/g, ''))}">${icon('phone', 14)} ${esc(b.phone)}</a>
           <a class="mini-link" href="mailto:${esc(b.email)}">${icon('mail', 14)} ${esc(b.email)}</a>
         </div>
@@ -105,6 +105,7 @@ App.route('/courses', { perm: 'learn', base: 'student', render(ctx) {
   const hour = new Date().getHours();
   ctx.root.innerHTML = `
     ${pageHead(`Good ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}, ${u.name.split(' ')[0]}`, `You're enrolled in ${list.length} ${list.length === 1 ? t('course', true) : t('courses', true)}.`)}
+    ${Domain.announcementsFor(u).filter(a => a.pinned).slice(0, 2).map(a => `<a class="note-box ann-banner" href="#/announcements">${icon('megaphone', 16)}<span><b>${esc(a.title)}</b> <span class="muted">${esc(a.message)}</span></span></a>`).join('')}
     ${(upcoming || pending.length) ? `<div class="up-next">
       ${upcoming ? `<a class="up-card" href="#/course/${upcoming.c.id}/session/${upcoming.s.id}"><span class="up-icon ${upcoming.s.date === today ? 'live' : ''}">${icon(upcoming.s.date === today ? 'video' : 'calendar', 18)}</span><div><small>${upcoming.s.date === today ? 'Live today' : 'Next ' + t('session', true)} · ${esc(fmtDate(upcoming.s.date, { weekday: 'short', day: 'numeric', month: 'short' }))}${upcoming.s.time ? ' · ' + fmtTime(upcoming.s.time) : ''}</small><b>${esc(upcoming.s.title)}</b><span class="muted small">${esc(upcoming.c.title)}</span></div>${icon('chevronRight', 18)}</a>` : ''}
       ${pending.length ? `<a class="up-card" href="#/assignments"><span class="up-icon warn">${icon('clipboard', 18)}</span><div><small>Due soon</small><b>${pending.length} pending ${pending.length === 1 ? t('assignment', true) : t('assignments', true)}</b><span class="muted small">Next: ${esc(pending.sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt)))[0].title)}</span></div>${icon('chevronRight', 18)}</a>` : ''}
@@ -252,7 +253,7 @@ App.route('/course/:id/session/:sid', { perm: ['learn', 'courses'], render(ctx) 
 
       </div>
       <aside class="stack">
-        ${isLearner && unlocked ? `<button class="btn ${done ? 'btn-secondary' : 'btn-primary'} btn-block" data-complete>${icon(done ? 'check' : 'checkSquare', 16)} ${done ? 'Completed — undo' : 'Mark as complete'}</button>` : ''}
+        ${isLearner && unlocked && !done && !Domain.sessionCompletable(s) ? `<p class="note-box small">${icon('clock', 14)} You can mark this ${t('session', true)} complete once it has taken place.</p>` : ''}${isLearner && unlocked && (done || Domain.sessionCompletable(s)) ? `<button class="btn ${done ? 'btn-secondary' : 'btn-primary'} btn-block" data-complete>${icon(done ? 'check' : 'checkSquare', 16)} ${done ? 'Completed — undo' : 'Mark as complete'}</button>` : ''}
         <div class="card"><div class="card-head"><h3>Resources</h3>${unlocked && s.resources?.length ? `<span class="muted small">${s.resources.length}</span>` : ''}</div>${resourceList(s.resources, unlocked)}</div>
         ${assignment ? `<div class="card"><div class="card-head"><h3>${t('assignment')}</h3>${ast ? badge(ast.status) : ''}</div><p class="strong">${esc(assignment.title)}</p><p class="small muted">${esc(assignment.description || '')}</p><p class="small">${icon('clock', 14)} Due ${fmtDateTime(assignment.dueAt)} · ${assignment.maxMarks} marks</p>${ast?.submission?.status === 'Graded' ? `<p class="small"><b>Grade:</b> ${ast.submission.grade}/${assignment.maxMarks}</p>` : ''}${isLearner ? `<a class="btn btn-primary btn-sm btn-block" href="#/course/${course.id}/submit?assignment=${assignment.id}">${icon('upload', 15)} ${ast?.submission ? 'View / replace submission' : 'Submit ' + t('assignment', true)}</a>` : `<a class="btn btn-ghost btn-sm btn-block" href="#/submissions?assignment=${assignment.id}">View submissions</a>`}</div>` : ''}
         ${zoom && (status === 'Today' || status === 'Upcoming') ? `<div class="card"><div class="card-head"><h3>Live class</h3></div>${zoomPanel(zoom, course).replace(/pop-head/g, 'card-sub')}</div>` : ''}
@@ -295,7 +296,7 @@ App.route('/course/:id/outline', { perm: ['learn', 'courses'], render(ctx) {
         <div class="card"><h3>At a glance</h3><dl class="facts">
           <div><dt>${t('program')}</dt><dd>${esc(findRecord('programs', course.programId)?.name || pairLabel(lms().programTypes, course.programType))}</dd></div>
           <div><dt>Level</dt><dd>${esc(course.level || '—')}</dd></div>
-          <div><dt>Duration</dt><dd>${esc(course.duration || '—')}</dd></div>
+          <div><dt>Duration</dt><dd>${esc(courseDuration(course) || '—')}</dd></div>
           <div><dt>Schedule</dt><dd>${esc(course.schedule || '—')}</dd></div>
           <div><dt>Delivery</dt><dd>${esc(pairLabel(lms().deliveryModes, course.delivery))}${course.venue ? ' · ' + esc(course.venue) : ''}</dd></div>
           <div><dt>Dates</dt><dd>${fmtDate(course.startDate)} – ${fmtDate(course.endDate)}</dd></div>

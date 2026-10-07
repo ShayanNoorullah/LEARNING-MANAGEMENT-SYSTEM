@@ -262,11 +262,24 @@ function login(email, password, remember) {
   updateRecord('users', u.id, { lastLoginAt: new Date().toISOString() });
   return { ok: true, user: u };
 }
-function logout() { sessionStorage.removeItem('sdcSession'); localStorage.removeItem('sdcRemember'); location.href = 'login.html'; }
+async function logout() { try { await window.SDCCloud?.flushNow?.(); } catch (e) {} window.SDCCloud?.signOut?.(); sessionStorage.removeItem('sdcSession'); localStorage.removeItem('sdcRemember'); location.href = 'login.html'; }
 
 /* --------------------------------------------------------------- helpers */
 function esc(v = '') { return String(v ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
 function initials(name = '') { return String(name).split(/\s+/).filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase() || '?'; }
+/* "3 months", "6 weeks", "1–2 days" -> end date (inclusive) from a start date; '' when the text has no usable number. */
+function endDateFor(startISO, durationText) {
+  const m = String(durationText || '').match(/(\d+)\s*(?:[–-]\s*(\d+))?\s*(day|week|month|year)/i), d = parseDate(startISO);
+  if (!m || !d) return '';
+  const n = Number(m[2] || m[1]), unit = m[3].toLowerCase();
+  if (unit === 'day') d.setDate(d.getDate() + n);
+  else if (unit === 'week') d.setDate(d.getDate() + n * 7);
+  else if (unit === 'month') d.setMonth(d.getMonth() + n);
+  else d.setFullYear(d.getFullYear() + n);
+  d.setDate(d.getDate() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function courseDuration(course) { return findRecord('programs', course?.programId)?.duration || course?.duration || ''; }
 function slugify(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60); }
 function todayISO() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
 function parseDate(s) { if (!s) return null; const d = new Date(String(s).length === 10 ? s + 'T00:00:00' : s); return isNaN(d) ? null : d; }
@@ -325,6 +338,7 @@ const Domain = {
     if (session.date > today) return 'Upcoming';
     return 'Available';
   },
+  sessionCompletable(session) { return ['Available', 'Today'].includes(Domain.sessionStatus(session)); },
   sessionNumber(session) { return Domain.courseSessions(session.courseId).findIndex(s => s.id === session.id) + 1; },
   zoomFor(course, session) {
     const z = session?.zoom && (session.zoom.registerUrl || session.zoom.meetingId) ? session.zoom : course?.zoom;
@@ -338,12 +352,14 @@ const Domain = {
     return { record: p, completed: done, percent: pct(done.length, sessions.length), lastSessionId: p?.lastSessionId };
   },
   setSessionComplete(learnerId, courseId, sessionId, complete) {
+    if (complete && !Domain.sessionCompletable(findRecord('sessions', sessionId) || {})) return false;
     const d = db(); let p = d.progress.find(x => x.learnerId === learnerId && x.courseId === courseId);
     if (!p) { p = { id: uid('PRG'), learnerId, courseId, completedSessionIds: [], lastSessionId: sessionId }; d.progress.push(p); }
     const set = new Set(p.completedSessionIds || []);
     complete ? set.add(sessionId) : set.delete(sessionId);
     p.completedSessionIds = [...set]; p.lastSessionId = sessionId; p.updatedAt = new Date().toISOString();
     saveDB(d);
+    return true;
   },
   touchSession(learnerId, courseId, sessionId) {
     const d = db(); let p = d.progress.find(x => x.learnerId === learnerId && x.courseId === courseId);
