@@ -36,7 +36,8 @@ const App = {
       ] },
       { group: 'Connect', items: [
         { path: '/announcements', label: () => 'Announcements', icon: 'megaphone', perm: 'announcements', feature: 'announcements' },
-        { path: '/messages', label: () => 'Messages', icon: 'mail', perm: 'messages', feature: 'messages', badge: () => unreadMessages() }
+        { path: '/messages', label: () => 'Messages', icon: 'mail', perm: 'messages', feature: 'messages', badge: () => unreadMessages() },
+        { path: '/notifications', label: () => 'Notifications', icon: 'bell', badge: () => db().notifications.filter(n => n.userId === this.user.id && !n.read).length }
       ] },
       { group: 'System', items: [
         { path: '/reports', label: () => 'Reports', icon: 'pie', perm: 'reports' },

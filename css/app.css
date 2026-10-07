@@ -155,7 +155,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 .course-tools { display: flex; gap: 4px; margin-right: 6px; }
 .user-chip { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 8px 0 4px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 .86rem var(--font); cursor: pointer; }
 .user-chip:hover { border-color: var(--border-strong); }
-.dot-count { position: absolute; top: 4px; right: 3px; min-width: 17px; height: 17px; border-radius: 999px; background: var(--danger); color: #fff; font-size: .64rem; font-weight: 700; display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--bg); }
+.dot-count { position: absolute; top: -2px; right: -4px; min-width: 18px; height: 18px; border-radius: 999px; background: var(--danger); color: #fff; font-size: .64rem; font-weight: 700; display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--bg); }
 .content { flex: 1; width: 100%; max-width: 1320px; margin: 0 auto; padding: 28px 28px 40px; outline: none; }
 .fade-in { animation: fadeIn .22s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -512,7 +512,11 @@ details summary { cursor: pointer; color: var(--muted); margin-top: 8px; }
 .mail-item { display: flex; gap: 12px; width: 100%; text-align: left; padding: 12px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text); font: inherit; cursor: pointer; min-width: 0; }
 .mail-item:hover { background: var(--surface-2); }
 .mail-item.active { background: var(--primary-soft); }
+.mail-item.unread { background: color-mix(in srgb, var(--primary) 6%, transparent); box-shadow: inset 3px 0 0 var(--primary); }
+.mail-item.unread.active { background: var(--primary-soft); }
 .mail-item.unread b { color: var(--primary); }
+.unread-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); margin-right: 6px; vertical-align: middle; }
+.nowrap { white-space: nowrap; }
 .mail-item.unread .truncate:first-of-type { font-weight: 700; }
 .mail-view { min-height: 360px; }
 .mail-subject { margin-bottom: 14px; }
