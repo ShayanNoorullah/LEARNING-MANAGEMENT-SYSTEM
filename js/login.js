@@ -97,7 +97,7 @@
     window.addEventListener('sdc-cloud-refresh', paint);
     const err = $('#loginError'), btn = $('#loginBtn');
     const show = showError;
-    $('[data-theme-toggle]').onclick = e => { const m = toggleTheme(); e.currentTarget.innerHTML = icon(m === 'dark' ? 'sun' : 'moon'); };
+    $('[data-theme-toggle]').onclick = e => { const m = toggleTheme(e); e.currentTarget.innerHTML = icon(m === 'dark' ? 'sun' : 'moon'); };
     $('#togglePw').onclick = () => { const p = $('#password'), show = p.type === 'password'; p.type = show ? 'text' : 'password'; $('#togglePw').setAttribute('aria-label', show ? 'Hide password' : 'Show password'); };
     $('#forgot').onclick = () => {
       const b = brand();

@@ -179,12 +179,26 @@ function applyTheme(mode) {
   const fav = document.querySelector('link[rel="icon"]');
   if (fav && brand().logoUrl) fav.href = resolveAsset(brand().logoUrl);
 }
-function toggleTheme() {
+function toggleTheme(event) {
   const next = currentTheme() === 'dark' ? 'light' : 'dark';
   try { localStorage.setItem('sdcTheme', next); } catch (e) {}
-  applyTheme(next);
+  // Circular reveal from the toggle button where the View Transitions API exists; instant otherwise.
+  const root = document.documentElement, r = event?.currentTarget?.getBoundingClientRect?.();
+  if (document.startViewTransition && r && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    root.style.setProperty('--vt-x', r.left + r.width / 2 + 'px');
+    root.style.setProperty('--vt-y', r.top + r.height / 2 + 'px');
+    document.startViewTransition(() => applyTheme(next));
+  } else applyTheme(next);
   return next;
 }
+// Cursor spotlight on cards (visible in dark mode via CSS --mx/--my).
+document.addEventListener?.('pointermove', e => {
+  const el = e.target.closest?.('.card, .stat, .course-card, .session-row, .up-card, .pager-link');
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty('--mx', e.clientX - r.left + 'px');
+  el.style.setProperty('--my', e.clientY - r.top + 'px');
+}, { passive: true });
 function resolveAsset(url) { return /^(https?:|data:|\/|mailto:)/.test(url || '') ? url : (document.baseURI ? new URL(url, document.baseURI).href : url); }
 
 /* ------------------------------------------------------------------- auth */

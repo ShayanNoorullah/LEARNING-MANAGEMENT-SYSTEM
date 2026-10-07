@@ -103,7 +103,7 @@ const App = {
     scrim.onclick = closeMenu;
     side.addEventListener('click', e => { if (e.target.closest('a')) closeMenu(); });
     document.querySelectorAll('[data-logout]').forEach(b => b.onclick = logout);
-    document.querySelector('[data-theme-toggle]').onclick = e => { const m = toggleTheme(); e.currentTarget.innerHTML = icon(m === 'dark' ? 'sun' : 'moon'); };
+    document.querySelector('[data-theme-toggle]').onclick = e => { const m = toggleTheme(e); e.currentTarget.innerHTML = icon(m === 'dark' ? 'sun' : 'moon'); };
     this.popover('[data-user-btn]', '[data-user-pop]');
     this.popover('[data-bell]', '[data-bell-pop]', () => this.renderNotifications());
     document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenu(); document.querySelectorAll('.popover').forEach(p => p.hidden = true); } });

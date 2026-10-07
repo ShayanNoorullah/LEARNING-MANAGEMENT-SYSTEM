@@ -720,3 +720,80 @@ details summary { cursor: pointer; color: var(--muted); margin-top: 8px; }
   .sidebar, .topbar, .app-foot, .page-actions, .toast-stack { display: none !important; }
   .shell { display: block; } .content { padding: 0; }
 }
+
+/* ---------- dark theme: depth, glow & interaction ---------- */
+:root[data-theme="dark"] {
+  --bg: #060A13; --surface: #0D1424; --surface-2: #131C31;
+  --border: rgba(148, 163, 184, .13); --border-strong: rgba(148, 163, 184, .24);
+  --text: #EAF0F8; --text-2: #C2CCDB; --muted: #8C99AE;
+  --primary: color-mix(in srgb, var(--brand) 30%, #7CC0FF); --primary-ink: #04101F;
+  --accent-bright: color-mix(in srgb, var(--accent) 45%, #5EEAD4);
+  --glow: color-mix(in srgb, var(--primary) 45%, transparent);
+  --glow-soft: color-mix(in srgb, var(--primary) 18%, transparent);
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .01));
+  --shadow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 10px 30px -18px rgba(0, 0, 0, .9);
+}
+:root[data-theme="dark"] body {
+  background:
+    radial-gradient(1000px 520px at 55% -12%, color-mix(in srgb, var(--brand) 55%, transparent), transparent 62%),
+    radial-gradient(700px 500px at 105% 105%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
+}
+/* glass surfaces with an inner highlight */
+:root[data-theme="dark"] :is(.card, .stat, .course-card, .session-row, .up-card, .pager-link, .modal, .popover, .search-box, .chip, .user-chip) {
+  background: var(--sheen), var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+:root[data-theme="dark"] .course-hero { background: radial-gradient(600px 260px at 0% 0%, color-mix(in srgb, var(--c) 30%, transparent), transparent 70%), var(--sheen), var(--surface); border-color: var(--border); }
+/* cursor spotlight + glowing lift */
+:root[data-theme="dark"] :is(.card, .stat, .course-card, .session-row, .up-card, .pager-link) { position: relative; isolation: isolate; }
+:root[data-theme="dark"] :is(.card, .stat, .course-card, .session-row, .up-card, .pager-link)::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1; opacity: 0; transition: opacity .25s;
+  background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), color-mix(in srgb, var(--c, var(--primary)) 16%, transparent), transparent 65%);
+}
+:root[data-theme="dark"] :is(.card, .stat, .course-card, .session-row, .up-card, .pager-link):hover::after { opacity: 1; }
+:root[data-theme="dark"] :is(a.stat, a.course-card, .course-card.manage, a.session-row, .up-card, .pager-link):hover {
+  border-color: color-mix(in srgb, var(--c, var(--primary)) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c, var(--primary)) 25%, transparent), 0 18px 40px -18px color-mix(in srgb, var(--c, var(--primary)) 55%, transparent);
+  transform: translateY(-2px);
+}
+:root[data-theme="dark"] a.session-row:hover { transform: translateX(3px); }
+/* shell */
+:root[data-theme="dark"] .sidebar { background: linear-gradient(180deg, #0A1120, #070B15); border-right-color: var(--border); }
+:root[data-theme="dark"] .topbar { background: color-mix(in srgb, var(--bg) 70%, transparent); }
+:root[data-theme="dark"] .nav a.active { background: linear-gradient(90deg, var(--glow-soft), transparent); color: var(--text); box-shadow: inset 3px 0 0 var(--primary); }
+:root[data-theme="dark"] .nav a.active .ic { color: var(--primary); filter: drop-shadow(0 0 6px var(--glow)); }
+:root[data-theme="dark"] .nav-count { box-shadow: 0 0 10px var(--glow); }
+/* headings, icons, data */
+:root[data-theme="dark"] :is(.page-head h1, .course-hero h1, .session-head h1) {
+  background: linear-gradient(90deg, #fff 30%, color-mix(in srgb, var(--primary) 70%, #fff)); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+:root[data-theme="dark"] :is(.stat-icon, .up-icon) { background: linear-gradient(135deg, var(--glow-soft), color-mix(in srgb, var(--accent) 18%, transparent)); color: var(--primary); box-shadow: inset 0 0 0 1px var(--glow-soft); }
+:root[data-theme="dark"] .stat-value { text-shadow: 0 0 24px var(--glow-soft); }
+:root[data-theme="dark"] :is(.progress span, .bar-track span) { background: linear-gradient(90deg, var(--c, var(--accent-bright)), color-mix(in srgb, var(--c, var(--accent-bright)) 55%, #fff)); box-shadow: 0 0 12px color-mix(in srgb, var(--c, var(--accent-bright)) 60%, transparent); }
+:root[data-theme="dark"] :is(.s-num.done, .date-chip.today) { box-shadow: 0 0 14px color-mix(in srgb, var(--success) 35%, transparent); }
+:root[data-theme="dark"] .session-row.is-today { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-bright) 50%, transparent), 0 0 28px -6px color-mix(in srgb, var(--accent-bright) 45%, transparent); }
+/* controls */
+:root[data-theme="dark"] .btn-primary { background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 55%, var(--accent-bright))); box-shadow: 0 8px 24px -10px var(--glow), inset 0 1px 0 rgba(255, 255, 255, .25); }
+:root[data-theme="dark"] .btn-primary:hover:not(:disabled) { background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 55%, var(--accent-bright))); box-shadow: 0 10px 30px -8px var(--glow), 0 0 0 3px var(--glow-soft), inset 0 1px 0 rgba(255, 255, 255, .3); filter: brightness(1.08); }
+:root[data-theme="dark"] .btn-secondary { background: rgba(255, 255, 255, .03); }
+:root[data-theme="dark"] :is(.btn-secondary, .btn-ghost, .icon-btn):hover:not(:disabled) { background: rgba(255, 255, 255, .06); }
+:root[data-theme="dark"] .input { background: rgba(255, 255, 255, .03); border-color: var(--border-strong); }
+:root[data-theme="dark"] :is(.input:focus, .search-box:focus-within) { border-color: var(--primary); box-shadow: 0 0 0 3px var(--glow-soft), 0 0 18px -4px var(--glow); }
+:root[data-theme="dark"] .chip.active { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); box-shadow: 0 0 16px -2px var(--glow); }
+:root[data-theme="dark"] .tab.active { text-shadow: 0 0 12px var(--glow); }
+:root[data-theme="dark"] .switch input:checked + .switch-track { box-shadow: 0 0 12px var(--glow); }
+:root[data-theme="dark"] .badge { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 25%, transparent); }
+:root[data-theme="dark"] .table tbody tr:not(.tr-empty):hover td { background: rgba(255, 255, 255, .025); }
+:root[data-theme="dark"] .modal-backdrop { background: rgba(2, 6, 14, .7); }
+/* sign-in page in dark */
+:root[data-theme="dark"] .auth-panel { background: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .06) 1px, transparent 0) 0 0 / 22px 22px, var(--bg); }
+:root[data-theme="dark"] .auth-card { background: var(--sheen), color-mix(in srgb, var(--surface) 85%, transparent); box-shadow: 0 30px 70px -30px rgba(0, 0, 0, .9), 0 0 0 1px var(--border), 0 0 60px -30px var(--glow); }
+:root[data-theme="dark"] .google-btn { background: rgba(255, 255, 255, .04); }
+/* smooth colour change + circular reveal when switching theme */
+body, .sidebar, .topbar, .card, .stat, .course-card, .session-row, .input { transition: background-color .3s, border-color .3s, color .3s, box-shadow .25s, transform .2s; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-new(root) { animation: theme-reveal .55s cubic-bezier(.4, 0, .2, 1); }
+@keyframes theme-reveal { from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 0)); } to { clip-path: circle(150vmax at var(--vt-x, 50%) var(--vt-y, 0)); } }
