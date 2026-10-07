@@ -324,7 +324,8 @@ function builderAssignments(pane, course) {
     subtitle: `Each ${t('assignment', true)} is linked to a ${t('session', true)} and appears in the learner's Submit page.`,
     rows: () => Domain.courseAssignments(course.id, true), defaultSort: 'due',
     columns: [
-      { key: 'title', label: 'Title', primary: true, render: a => `<b>${esc(a.title)}</b><small class="muted block">${esc(sessions.find(s => s.id === a.sessionId)?.title || 'No session')}</small>` },
+      { key: 'title', label: 'Title', primary: true, render: a => `<b>${esc(a.title)}</b>` },
+      { key: 'session', label: t('session'), sortValue: a => sessions.findIndex(s => s.id === a.sessionId), render: a => { const i = sessions.findIndex(s => s.id === a.sessionId); return i < 0 ? '<span class="muted">—</span>' : `<span class="pill">${i + 1}</span> ${esc(sessions[i].title)}`; } },
       { key: 'due', label: 'Due', sortValue: a => a.dueAt || '', render: a => fmtDateTime(a.dueAt) },
       { key: 'maxMarks', label: 'Marks' },
       { key: 'subs', label: 'Submissions', sortValue: a => db().submissions.filter(s => s.assignmentId === a.id).length, render: a => { const ss = db().submissions.filter(s => s.assignmentId === a.id); return `<a href="#/submissions?assignment=${a.id}">${ss.length}</a> <small class="muted">(${ss.filter(s => s.status === 'Graded').length} graded)</small>`; } },
@@ -444,6 +445,16 @@ App.route('/enrollments', { perm: 'enrollments', render(ctx) {
 } });
 
 /* -------------------------------------------- Programs, divisions, batches */
+// Batch names follow <Course>-<Delivery>-<Year>, with -2, -3… when that name is already taken.
+function batchName(courseId, delivery, startDate, exceptId) {
+  const c = findRecord('courses', courseId); if (!c) return '';
+  const short = String(c.slug || c.title).split(/[-\s]+/)[0];
+  const base = [short.charAt(0).toUpperCase() + short.slice(1), pairLabel(lms().deliveryModes, delivery), String(startDate || todayISO()).slice(0, 4)].join('-');
+  const taken = new Set(db().batches.filter(b => b.id !== exceptId).map(b => b.name));
+  if (!taken.has(base)) return base;
+  let n = 2; while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
 App.route('/programs', { perm: 'programs', render(ctx) {
   ctx.setCrumbs([{ label: t('programs') }]);
   crudPage(ctx, {
@@ -502,12 +513,21 @@ App.route('/batches', { perm: 'batches', render(ctx) {
     ],
     filters: [{ key: 'courseId', label: `All ${t('courses', true)}`, options: opt.courses }, { key: 'status', label: 'All statuses', options: ['Active', 'Completed', 'Cancelled'] }],
     fields: () => [
-      { name: 'name', label: 'Name', required: true, full: true }, { name: 'courseId', label: t('course'), type: 'select', options: opt.courses, required: true },
+      { name: 'name', label: 'Name', required: true, full: true, readonly: true, help: 'Generated automatically from the course, delivery mode and start year.' }, { name: 'courseId', label: t('course'), type: 'select', options: opt.courses, required: true },
       { name: 'instructorId', label: t('instructor'), type: 'select', options: opt.instructors }, { name: 'startDate', label: 'Start date', type: 'date' }, { name: 'endDate', label: 'End date', type: 'date' },
       { name: 'delivery', label: 'Delivery', type: 'select', options: opt.delivery, placeholderOption: false }, { name: 'venue', label: 'Venue' }, { name: 'capacity', label: 'Capacity', type: 'number', min: 1 },
       { name: 'status', label: 'Status', type: 'select', options: ['Active', 'Completed', 'Cancelled'], placeholderOption: false }
     ],
     defaults: () => ({ status: 'Active', delivery: 'online', capacity: 30 }),
+    bindForm: (form, rec) => {
+      const sync = () => { form.name.value = batchName(form.courseId.value, form.delivery.value, form.startDate.value, rec?.id) || ''; };
+      ['courseId', 'delivery', 'startDate'].forEach(k => form[k].addEventListener('change', sync));
+      if (!rec) sync();
+    },
+    transform: (b, rec) => {
+      const keyChanged = !rec || rec.courseId !== b.courseId || rec.delivery !== b.delivery || String(rec.startDate || '').slice(0, 4) !== String(b.startDate || '').slice(0, 4);
+      return { ...b, name: keyChanged ? batchName(b.courseId, b.delivery, b.startDate, rec?.id) : rec.name };
+    },
     validate: b => { if (b.startDate && b.endDate && b.endDate < b.startDate) throw new Error('End date must be after the start date.'); },
     beforeDelete: b => { if (db().enrollments.some(e => e.batchId === b.id)) throw new Error(`Move enrolled ${t('learners', true)} to another ${t('batch', true)} first.`); }
   });

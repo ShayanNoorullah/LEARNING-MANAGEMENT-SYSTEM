@@ -89,7 +89,7 @@ A role has three independent parts:
    Learners, submissions, attendance, results, announcements, messaging recipients and badges are all derived from the visible courses.
 3. **Permissions** — `can(module, action)` checks `role.permissions[module]`. Modules and their actions are declared once in `PERMISSIONS` (`core.js`):
 
-   `dashboard, learn, courses (view/create/edit/delete/publish), programs, divisions, batches, enrollments, learners, staff, roles, submissions (view/edit = grade), attendance (view/edit = mark), results (view/edit), certificates (view/create = issue/edit = revoke), fees, announcements, messages (view/create = send), calendar, reports, settings (view/edit)`
+   `dashboard, learn, courses (view/create/edit/delete/publish), programs, divisions, batches, enrollments, learners, staff, roles, submissions (view/edit = grade), attendance (view/edit = mark), results (view/edit), certificates (view/create = issue/edit = revoke), fees, announcements, messages (view/create = send), calendar, feedback (view/delete), reports, settings (view/edit)`
 
 Enforcement points:
 - **Routes** declare `perm` (and optionally `base`, `feature`); `App.allowed()` blocks the page otherwise.

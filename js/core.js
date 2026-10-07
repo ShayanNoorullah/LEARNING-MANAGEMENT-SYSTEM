@@ -145,6 +145,7 @@ const PERMISSIONS = [
   ['announcements', 'Announcements', ['view', 'create', 'edit', 'delete']],
   ['messages', 'Messages', ['view', 'create']],
   ['calendar', 'Calendar', ['view']],
+  ['feedback', 'Learner feedback', ['view', 'delete']],
   ['reports', 'Reports', ['view']],
   ['settings', 'Settings', ['view', 'edit']]
 ];
@@ -509,7 +510,7 @@ function openModal({ title, body = '', size = 'md', footer = '', onClose } = {})
   wrap.querySelectorAll('[data-modal-close]').forEach(b => b.addEventListener('click', close));
   document.addEventListener('keydown', onKey);
   document.body.appendChild(wrap);
-  setTimeout(() => (wrap.querySelector('[autofocus],input:not([type=hidden]),select,textarea,button:not([data-modal-close])') || wrap.querySelector('.modal')).focus?.(), 30);
+  setTimeout(() => (wrap.querySelector('[autofocus],input:not([type=hidden]):not([readonly]),select,textarea,button:not([data-modal-close])') || wrap.querySelector('.modal')).focus?.(), 30);
   wrap.close = close;
   return wrap;
 }

@@ -35,9 +35,12 @@
     await click(`[data-del="${d.id}"]`); await confirmYes(); check(!fresh().divisions.some(x => x.id === d.id), 'not deleted');
     await click('[data-del="DIV-IT"]'); check(fresh().divisions.some(x => x.id === 'DIV-IT'), 'in-use division was deleted');
   });
-  await step('Batches: create, delete', async () => {
-    await go('#/batches'); await click('[data-add]'); fill('name', 'QA Batch'); fill('courseId', 'C-EXCEL'); await save();
-    const b = fresh().batches.find(x => x.name === 'QA Batch'); check(b, 'not created');
+  await step('Batches: auto-named create, delete', async () => {
+    const before = new Set(db().batches.map(x => x.id));
+    await go('#/batches'); await click('[data-add]'); fill('courseId', 'C-EXCEL'); fill('delivery', 'onsite'); fill('startDate', '2027-01-10');
+    check(modal().querySelector('[name=name]').value === 'Excel-Onsite-2027', 'name preview wrong: ' + modal().querySelector('[name=name]').value); await save();
+    const b = fresh().batches.find(x => !before.has(x.id)); check(b?.name === 'Excel-Onsite-2027', 'not created / wrong name');
+    check(batchName('C-EXCEL', 'onsite', '2027-03-01') === 'Excel-Onsite-2027-2', 'sequence suffix wrong');
     await click(`[data-del="${b.id}"]`); await confirmYes(); check(!findRecord('batches', b.id), 'not deleted');
   });
   let cid;

@@ -40,6 +40,7 @@ const App = {
       ] },
       { group: 'System', items: [
         { path: '/reports', label: () => 'Reports', icon: 'pie', perm: 'reports' },
+        { path: '/feedback', label: () => 'Feedback', icon: 'star', perm: 'feedback', feature: 'feedback' },
         { path: '/settings', label: () => 'Settings', icon: 'settings', perm: 'settings' }
       ] }
     ];
@@ -77,7 +78,7 @@ const App = {
         <div class="scrim" data-scrim></div>
         <div class="main">
           <header class="topbar">
-            <button class="icon-btn only-mobile" data-menu aria-label="Open menu">${icon('menu')}</button>
+            <button class="icon-btn" data-menu aria-label="Toggle navigation">${icon('menu')}</button>
             <nav class="crumbs" data-crumbs aria-label="Breadcrumb"></nav>
             <div class="top-actions">
               <div class="course-tools" data-tools></div>
@@ -99,7 +100,18 @@ const App = {
       </div>`;
     const side = document.querySelector('.sidebar'), scrim = document.querySelector('[data-scrim]');
     const closeMenu = () => { side.classList.remove('open'); scrim.classList.remove('show'); };
-    document.querySelector('[data-menu]').onclick = () => { side.classList.add('open'); scrim.classList.add('show'); };
+    // Phones/tablets: slide-in drawer. Desktop: collapse the sidebar to icons (remembered per browser).
+    const shell = document.querySelector('.shell'), setMini = on => { shell.classList.toggle('nav-mini', on); try { localStorage.setItem('sdcNavMini', on ? '1' : ''); } catch (e) {} };
+    try { shell.classList.toggle('nav-mini', localStorage.getItem('sdcNavMini') === '1'); } catch (e) {}
+    document.querySelector('[data-menu]').onclick = () => { if (matchMedia('(max-width: 1024px)').matches) { side.classList.add('open'); scrim.classList.add('show'); } else setMini(!shell.classList.contains('nav-mini')); };
+    document.querySelector('[data-nav]').addEventListener('click', e => {
+      const btn = e.target.closest('[data-group]'); if (!btn) return;
+      let closed = []; try { closed = JSON.parse(localStorage.getItem('sdcNavClosed') || '[]'); } catch (err) {}
+      const g = btn.dataset.group, open = closed.includes(g);
+      closed = open ? closed.filter(x => x !== g) : [...closed, g];
+      try { localStorage.setItem('sdcNavClosed', JSON.stringify(closed)); } catch (err) {}
+      btn.parentElement.classList.toggle('collapsed', !open); btn.setAttribute('aria-expanded', String(open));
+    });
     scrim.onclick = closeMenu;
     side.addEventListener('click', e => { if (e.target.closest('a')) closeMenu(); });
     document.querySelectorAll('[data-logout]').forEach(b => b.onclick = logout);
@@ -127,11 +139,14 @@ const App = {
     nav.innerHTML = this.nav().map(g => {
       const items = g.items.filter(i => this.allowed(i));
       if (!items.length) return '';
-      return `<div class="nav-group">${g.group ? `<div class="nav-label">${esc(g.group)}</div>` : ''}${items.map(i => {
+      let closed = []; try { closed = JSON.parse(localStorage.getItem('sdcNavClosed') || '[]'); } catch (e) {}
+      const hasActive = items.some(i => path === i.path || path.startsWith(i.path + '/') || (i.path === '/courses' && path.startsWith('/course/')) || (i.path === '/manage/courses' && path.startsWith('/manage/course/')));
+      const collapsed = g.group && closed.includes(g.group) && !hasActive;
+      return `<div class="nav-group ${collapsed ? 'collapsed' : ''}">${g.group ? `<button type="button" class="nav-label" data-group="${esc(g.group)}" aria-expanded="${!collapsed}"><span>${esc(g.group)}</span>${icon('chevronDown', 13)}</button>` : ''}<div class="nav-items">${items.map(i => {
         const active = path === i.path || path.startsWith(i.path + '/') || (i.path === '/courses' && path.startsWith('/course/')) || (i.path === '/manage/courses' && path.startsWith('/manage/course/'));
         const n = i.badge ? i.badge() : 0;
-        return `<a href="#${i.path}" class="${active ? 'active' : ''}" ${active ? 'aria-current="page"' : ''}>${icon(i.icon)}<span>${esc(i.label())}</span>${n ? `<span class="nav-count">${n}</span>` : ''}</a>`;
-      }).join('')}</div>`;
+        return `<a href="#${i.path}" class="${active ? 'active' : ''}" ${active ? 'aria-current="page"' : ''} title="${esc(i.label())}">${icon(i.icon)}<span>${esc(i.label())}</span>${n ? `<span class="nav-count">${n}</span>` : ''}</a>`;
+      }).join('')}</div></div>`;
     }).join('');
   },
 
@@ -199,7 +214,7 @@ const App = {
   setCrumbs(crumbs) {
     const el = document.querySelector('[data-crumbs]');
     const list = crumbs.filter(Boolean);
-    el.innerHTML = list.map((c, i) => i < list.length - 1 && c.href ? `<a href="${esc(c.href)}">${esc(c.label)}</a>${icon('chevronRight', 14)}` : `<span ${i === list.length - 1 ? 'aria-current="page"' : ''}>${esc(c.label)}</span>${i < list.length - 1 ? icon('chevronRight', 14) : ''}`).join('');
+    el.innerHTML = list.length < 2 ? '' : list.map((c, i) => i < list.length - 1 && c.href ? `<a href="${esc(c.href)}">${esc(c.label)}</a>${icon('chevronRight', 14)}` : `<span ${i === list.length - 1 ? 'aria-current="page"' : ''}>${esc(c.label)}</span>${i < list.length - 1 ? icon('chevronRight', 14) : ''}`).join('');
     document.title = `${list[list.length - 1]?.label || ''} · ${brand().productName}`;
   },
   setTools(html, bind) {

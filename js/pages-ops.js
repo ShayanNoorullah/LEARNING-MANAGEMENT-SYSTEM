@@ -40,7 +40,7 @@ App.route('/dashboard', { perm: 'dashboard', render(ctx) {
     </div>
     <div class="grid-2">
       <div class="card"><div class="card-head"><h3>Enrollment by ${t('course', true)}</h3></div>
-        ${byCourse.length ? `<div class="bars">${byCourse.map(x => `<div class="bar-row"><span class="truncate">${esc(x.c.title)}</span><div class="bar-track"><span style="width:${pct(x.n, maxN)}%;--c:${esc(x.c.accent || 'var(--brand)')}"></span></div><b>${x.n}</b></div>`).join('')}</div><p class="small muted mt">Average progress: ${byCourse.map(x => `${esc(x.c.code || x.c.title)} ${x.p}%`).join(' · ')}</p>` : emptyState(`No published ${t('courses', true)}`, '', 'book')}
+        ${byCourse.length ? `<div class="bars">${byCourse.map(x => `<div class="bar-row"><span class="truncate" title="${esc(x.c.title)}">${esc(x.c.title)}</span><div class="bar-track"><span style="width:${pct(x.n, maxN)}%;--c:${esc(x.c.accent || 'var(--brand)')}"></span></div><span class="bar-chips"><span class="pill" title="Enrolled ${esc(t('learners', true))}">${icon('users', 12)} ${x.n} ${x.n === 1 ? esc(t('learner', true)) : esc(t('learners', true))}</span><span class="pill" title="Average progress">${icon('target', 12)} ${x.p}% avg. progress</span></span></div>`).join('')}</div>` : emptyState(`No published ${t('courses', true)}`, '', 'book')}
       </div>
       <div class="card"><div class="card-head"><h3>Announcements</h3><a class="small" href="#/announcements">Manage</a></div>
         ${Domain.announcementsFor(u).slice(0, 4).map(a => `<div class="ann-mini"><div class="row-between"><b>${esc(a.title)}</b>${a.pinned ? badge('Pinned', 'highlight') : ''}</div><p class="small muted clamp-2">${esc(a.message)}</p></div>`).join('') || emptyState('No announcements', '', 'megaphone')}
@@ -54,8 +54,8 @@ function gradeModal(sub, done) {
   const a = findRecord('assignments', sub.assignmentId), l = findRecord('users', sub.learnerId);
   const m = openModal({ title: 'Grade submission', body: `
     <div class="person mb">${avatar(l, 40)}<div><b>${esc(l?.name)}</b><small class="muted block">${esc(a?.title)} · ${esc(courseTitle(sub.courseId))}</small></div></div>
-    <ul class="resource-list mb"><li><span class="res-icon">${icon('file', 16)}</span><div class="grow"><b class="truncate">${esc(sub.fileName)}</b><small class="muted">${fmtDateTime(sub.uploadedAt)}${sub.size ? ' · ' + fmtSize(sub.size) : ''} · ${badge(sub.status)}</small></div><a class="btn btn-ghost btn-sm" href="${esc(sub.fileUrl)}" download="${esc(sub.fileName)}" target="_blank" rel="noopener">${icon('download', 15)} Download</a></li></ul>
-    <form novalidate><div class="form-grid"><div class="field"><label class="label" for="g-m">Marks (out of ${a?.maxMarks})</label><input id="g-m" class="input" type="number" name="grade" min="0" max="${a?.maxMarks}" step="0.5" value="${sub.grade ?? ''}" required autofocus></div><div class="field"><label class="label">Quick feedback</label><div class="chips">${['Excellent work', 'Good effort', 'Needs improvement', 'Please resubmit'].map(x => `<button type="button" class="chip" data-fb="${x}">${x}</button>`).join('')}</div></div><div class="field full"><label class="label" for="g-f">Feedback</label><textarea id="g-f" class="input" rows="4" name="feedback">${esc(sub.feedback || '')}</textarea></div></div></form>`,
+    <ul class="resource-list grade-file"><li><span class="res-icon">${icon('file', 16)}</span><div class="grow"><b class="truncate">${esc(sub.fileName)}</b><small class="muted">${fmtDateTime(sub.uploadedAt)}${sub.size ? ' · ' + fmtSize(sub.size) : ''} · ${badge(sub.status)}</small></div><a class="btn btn-ghost btn-sm" href="${esc(sub.fileUrl)}" download="${esc(sub.fileName)}" target="_blank" rel="noopener">${icon('download', 15)} Download</a></li></ul>
+    <form class="grade-form" novalidate><div class="form-grid"><div class="field"><label class="label" for="g-m">Marks (out of ${a?.maxMarks})</label><input id="g-m" class="input" type="number" name="grade" min="0" max="${a?.maxMarks}" step="0.5" value="${sub.grade ?? ''}" required autofocus></div><div class="field"><label class="label">Quick feedback</label><div class="chips">${['Excellent work', 'Good effort', 'Needs improvement', 'Please resubmit'].map(x => `<button type="button" class="chip" data-fb="${x}">${x}</button>`).join('')}</div></div><div class="field full"><label class="label" for="g-f">Feedback</label><textarea id="g-f" class="input" rows="4" name="feedback">${esc(sub.feedback || '')}</textarea></div></div></form>`,
     footer: `<button class="btn btn-ghost" data-modal-close>Cancel</button><button class="btn btn-primary" data-save>Save grade</button>` });
   const form = m.querySelector('form');
   m.querySelectorAll('[data-fb]').forEach(b => b.onclick = () => { form.feedback.value = form.feedback.value ? `${form.feedback.value} ${b.dataset.fb}.` : `${b.dataset.fb}.`; });
@@ -449,12 +449,9 @@ App.route('/reports', { perm: 'reports', render(ctx) {
   const fb = d.feedback.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
   const avgRating = fb.length ? (sum(fb, f => f.rating) / fb.length).toFixed(1) : '—';
   ctx.root.innerHTML = `${pageHead('Reports', 'Delivery, engagement and finance insights. Export any dataset as CSV.')}
-    <div class="stats">${statCard(t('learners'), d.users.filter(u => kind(u) === 'student').length, 'cap')}${statCard('Enrollments', d.enrollments.length, 'userPlus')}${statCard('Certificates', d.certificates.filter(c => c.status === 'Valid').length, 'award')}${statCard('Avg. feedback', avgRating + (fb.length ? ' / 5' : ''), 'star', `${fb.length} responses`)}</div>
+    <div class="stats">${statCard(t('learners'), d.users.filter(u => kind(u) === 'student').length, 'cap', `${new Set(d.enrollments.filter(e => e.status === 'Active').map(e => e.learnerId)).size} currently enrolled`, can('learners') ? '#/learners' : '')}${statCard('Enrollments', d.enrollments.length, 'userPlus', `${d.enrollments.filter(e => e.status === 'Active').length} active · ${d.enrollments.filter(e => e.status === 'Completed').length} completed`, can('enrollments') ? '#/enrollments' : '')}${statCard('Certificates', d.certificates.filter(c => c.status === 'Valid').length, 'award', `${d.certificates.filter(c => c.status === 'Revoked').length} revoked`, can('certificates') && feature('certificates') ? '#/certificates' : '')}${statCard('Avg. feedback', avgRating + (fb.length ? ' / 5' : ''), 'star', `${fb.length} response${fb.length === 1 ? "" : "s"}`, can('feedback') && feature('feedback') ? '#/feedback' : '')}</div>
     <div class="card"><div class="card-head"><h3>${t('course')} performance</h3></div><div class="table-wrap"><table class="table"><thead><tr><th>${t('course')}</th><th>${t('learners')}</th><th>Avg. progress</th><th>Attendance</th><th>Submission rate</th><th>Certificates</th>${feature('fees') ? '<th class="ta-r">Revenue</th>' : ''}</tr></thead><tbody>${rows.map(r => `<tr><td data-label="${t('course')}" class="td-primary"><b>${esc(r.c.title)}</b></td><td data-label="${t('learners')}">${r.n}</td><td data-label="Progress"><div class="inline-progress">${progressBar(r.progress)}<small>${r.progress}%</small></div></td><td data-label="Attendance">${r.attendance ?? '—'}${r.attendance != null ? '%' : ''}</td><td data-label="Submissions">${r.submissionRate ?? '—'}${r.submissionRate != null ? '%' : ''}</td><td data-label="Certificates">${r.certs}</td>${feature('fees') ? `<td data-label="Revenue" class="ta-r">${fmtMoney(r.revenue)}</td>` : ''}</tr>`).join('') || `<tr><td colspan="7">${emptyState('No data yet')}</td></tr>`}</tbody></table></div></div>
-    <div class="grid-2">
-      <div class="card"><div class="card-head"><h3>Export data</h3></div><div class="export-grid">${[['learners', t('learners')], ['enrollments', 'Enrollments'], ['submissions', 'Submissions'], ['attendance', 'Attendance'], ['results', 'Results'], ['fees', t('fees')], ['certificates', 'Certificates'], ['feedback', 'Feedback']].filter(([k]) => k !== 'fees' || feature('fees')).map(([k, l]) => `<button class="btn btn-secondary btn-sm" data-exp="${k}">${icon('download', 15)} ${esc(l)}</button>`).join('')}</div></div>
-      <div class="card"><div class="card-head"><h3>Learner feedback</h3></div>${fb.length ? fb.slice(0, 5).map(f => `<div class="ann-mini"><div class="row-between"><b>${esc(userName(f.learnerId))}</b><span class="stars-static">${'★'.repeat(f.rating)}${'☆'.repeat(5 - f.rating)}</span></div><p class="small muted">${esc(f.comment || 'No comment')}</p><small class="muted">${esc(courseTitle(f.courseId))} · ${fmtDate(f.date)}${f.publish ? ' · OK to publish' : ''}</small></div>`).join('') : emptyState('No feedback yet', '', 'star')}</div>
-    </div>`;
+    <div class="card mt"><div class="card-head"><h3>Export data</h3><span class="small muted">Download any dataset as CSV</span></div><div class="export-grid">${[['learners', t('learners')], ['enrollments', 'Enrollments'], ['submissions', 'Submissions'], ['attendance', 'Attendance'], ['results', 'Results'], ['fees', t('fees')], ['certificates', 'Certificates'], ['feedback', 'Feedback']].filter(([k]) => k !== 'fees' || feature('fees')).map(([k, l]) => `<button class="btn btn-secondary btn-sm" data-exp="${k}">${icon('download', 15)} ${esc(l)}</button>`).join('')}</div></div>`;
   const exporters = {
     learners: () => [['Name', 'Email', 'Reg. no.', 'Phone', 'City', 'Status', 'Courses'], ...d.users.filter(u => kind(u) === 'student').map(u => [u.name, u.email, u.regNo, u.phone, u.city, u.status, Domain.learnerEnrollments(u.id).map(e => courseTitle(e.courseId)).join('; ')])],
     enrollments: () => [[t('learner'), t('course'), t('batch'), 'Access', 'Status', 'Progress %', 'Enrolled'], ...d.enrollments.map(e => [userName(e.learnerId), courseTitle(e.courseId), findRecord('batches', e.batchId)?.name || '', e.accessMode, e.status, Domain.progress(e.learnerId, e.courseId).percent, e.enrolledAt])],
@@ -466,6 +463,31 @@ App.route('/reports', { perm: 'reports', render(ctx) {
     feedback: () => [[t('learner'), t('course'), 'Rating', 'Comment', 'Date', 'Publishable'], ...d.feedback.map(f => [userName(f.learnerId), courseTitle(f.courseId), f.rating, f.comment, f.date, f.publish ? 'Yes' : 'No'])]
   };
   ctx.root.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => csvDownload(`${b.dataset.exp}-${todayISO()}.csv`, exporters[b.dataset.exp]()));
+} });
+
+/* --------------------------------------------------------------- Feedback */
+App.route('/feedback', { perm: 'feedback', feature: 'feedback', render(ctx) {
+  ctx.setCrumbs([{ label: 'Feedback' }]);
+  const rows = () => db().feedback.filter(f => scopeAll(ctx.user) || Domain.visibleCourses(ctx.user).some(c => c.id === f.courseId));
+  const all = rows(), avg = all.length ? (sum(all, f => f.rating) / all.length).toFixed(1) : '—';
+  const stars = n => `<span class="stars-static" aria-label="${n} out of 5">${'★'.repeat(n)}${'☆'.repeat(5 - n)}</span>`;
+  ctx.root.innerHTML = `${pageHead('Learner feedback', `Mid-course ratings and comments from ${t('learners', true)}.`)}
+    <div class="stats">${statCard('Responses', all.length, 'mail')}${statCard('Average rating', avg + (all.length ? ' / 5' : ''), 'star')}${statCard('Publishable', all.filter(f => f.publish).length, 'megaphone', 'Learner agreed to share')}${statCard('Low ratings', all.filter(f => f.rating <= 2).length, 'alert', '2 stars or less')}</div>
+    <div class="card" data-t></div>`;
+  const tbl = dataTable(ctx.root.querySelector('[data-t]'), {
+    rows, defaultSort: 'date', defaultDir: 'desc', searchText: f => `${userName(f.learnerId)} ${courseTitle(f.courseId)} ${f.comment || ''}`,
+    filters: [{ key: 'courseId', label: `All ${t('courses', true)}`, options: () => Domain.visibleCourses(ctx.user).map(c => ({ value: c.id, label: c.title })) }, { key: 'rating', label: 'Any rating', options: [5, 4, 3, 2, 1].map(n => ({ value: String(n), label: `${n} star${n > 1 ? 's' : ''}` })), match: (f, v) => String(f.rating) === v }],
+    columns: [
+      { key: 'learner', label: t('learner'), primary: true, sortValue: f => userName(f.learnerId), render: f => `<b>${esc(userName(f.learnerId))}</b><small class="muted block">${esc(courseTitle(f.courseId))}</small>` },
+      { key: 'rating', label: 'Rating', sortValue: f => f.rating, render: f => stars(f.rating) },
+      { key: 'comment', label: 'Comment', render: f => `<span class="clamp-2">${esc(f.comment || '—')}</span>` },
+      { key: 'publish', label: 'Publishable', sortValue: f => f.publish ? 1 : 0, render: f => f.publish ? badge('Yes', 'success') : badge('No') },
+      { key: 'date', label: 'Date', sortValue: f => f.date || '', render: f => fmtDate(f.date) }
+    ],
+    actions: f => can('feedback', 'delete') ? `<button class="icon-btn icon-btn-sm danger" data-del="${f.id}" aria-label="Delete">${icon('trash', 15)}</button>` : '',
+    emptyTitle: 'No feedback yet', emptyIcon: 'star',
+    onDraw: body => body.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (await confirmDialog('Delete this feedback?', { danger: true, confirmText: 'Delete' })) { deleteRecord('feedback', b.dataset.del); tbl.redraw(); toast('Feedback deleted.'); } })
+  });
 } });
 
 /* --------------------------------------------------------------- Settings */
