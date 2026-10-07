@@ -68,7 +68,7 @@ const App = {
       <a class="skip-link" href="#main">Skip to content</a>
       <div class="shell">
         <aside class="sidebar" aria-label="Main navigation">
-          <a class="brand" href="#${this.home()}"><img src="${esc(resolveAsset(b.logoUrl))}" alt="" class="brand-logo"><span><b>${esc(b.productName)}</b><small>${esc(b.orgShort)}</small></span></a>
+          <div class="brand"><button class="brand-toggle" data-collapse aria-label="Collapse navigation" title="Collapse navigation"><img src="${esc(resolveAsset(b.logoUrl))}" alt="" class="brand-logo"></button><a class="brand-name" href="#${this.home()}"><b>${esc(b.productName)}</b><small>${esc(b.orgShort)}</small></a></div>
           <nav class="nav" data-nav></nav>
           <div class="sidebar-foot">
             <div class="me">${avatar(u, 34)}<div><b>${esc(u.name)}</b><small>${esc(roleLabel(u.role))}</small></div></div>
@@ -101,9 +101,10 @@ const App = {
     const side = document.querySelector('.sidebar'), scrim = document.querySelector('[data-scrim]');
     const closeMenu = () => { side.classList.remove('open'); scrim.classList.remove('show'); };
     // Phones/tablets: slide-in drawer. Desktop: collapse the sidebar to icons (remembered per browser).
-    const shell = document.querySelector('.shell'), setMini = on => { shell.classList.toggle('nav-mini', on); try { localStorage.setItem('sdcNavMini', on ? '1' : ''); } catch (e) {} };
-    try { shell.classList.toggle('nav-mini', localStorage.getItem('sdcNavMini') === '1'); } catch (e) {}
-    document.querySelector('[data-menu]').onclick = () => { if (matchMedia('(max-width: 1024px)').matches) { side.classList.add('open'); scrim.classList.add('show'); } else setMini(!shell.classList.contains('nav-mini')); };
+    const shell = document.querySelector('.shell'), setMini = on => { shell.classList.toggle('nav-mini', on); const t = document.querySelector('[data-collapse]'); t.title = t.ariaLabel = on ? 'Expand navigation' : 'Collapse navigation'; try { localStorage.setItem('sdcNavMini', on ? '1' : ''); } catch (e) {} };
+    try { if (localStorage.getItem('sdcNavMini') === '1') setMini(true); } catch (e) {}
+    document.querySelector('[data-menu]').onclick = () => { side.classList.add('open'); scrim.classList.add('show'); };
+    document.querySelector('[data-collapse]').onclick = () => { if (matchMedia('(max-width: 1024px)').matches) closeMenu(); else setMini(!shell.classList.contains('nav-mini')); };
     document.querySelector('[data-nav]').addEventListener('click', e => {
       const btn = e.target.closest('[data-group]'); if (!btn) return;
       let closed = []; try { closed = JSON.parse(localStorage.getItem('sdcNavClosed') || '[]'); } catch (err) {}

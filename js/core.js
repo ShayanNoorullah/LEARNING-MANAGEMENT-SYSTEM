@@ -592,7 +592,7 @@ function dataTable(container, cfg) {
       : `<tr class="tr-empty"><td colspan="${cfg.columns.length + (cfg.actions ? 1 : 0)}">${emptyState(cfg.emptyTitle || 'Nothing here yet', cfg.emptyText || (state.q ? 'Try a different search term.' : ''), cfg.emptyIcon || 'layers')}</td></tr>`;
     container.querySelectorAll('th[data-sort]').forEach(th => { th.dataset.dir = th.dataset.sort === state.sort ? state.dir : ''; });
     const pg = container.querySelector('[data-dt-pages]');
-    pg.innerHTML = pages > 1 ? `<button class="btn btn-ghost btn-sm" data-pg="${state.page - 1}" ${state.page === 1 ? 'disabled' : ''} aria-label="Previous page">${icon('chevronLeft', 16)}</button><span class="small muted">Page ${state.page} of ${pages}</span><button class="btn btn-ghost btn-sm" data-pg="${state.page + 1}" ${state.page === pages ? 'disabled' : ''} aria-label="Next page">${icon('chevronRight', 16)}</button>` : '';
+    pg.innerHTML = pagerHTML(state.page, pages, rows.length, size);
     pg.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => { state.page = Number(b.dataset.pg); draw(); });
     cfg.onDraw?.(body);
   }
@@ -604,6 +604,25 @@ function dataTable(container, cfg) {
   });
   draw();
   return { redraw: draw, rows: rowsNow };
+}
+
+/* Shared pager markup: always shows the range so every table reads the same, even on one page. */
+function pagerHTML(page, pages, total, size) {
+  if (!total) return '';
+  return `<span class="small muted">Showing ${(page - 1) * size + 1}–${Math.min(page * size, total)} of ${total}</span><span class="row gap-sm"><button class="btn btn-ghost btn-sm" data-pg="${page - 1}" ${page === 1 ? 'disabled' : ''} aria-label="Previous page">${icon('chevronLeft', 16)}</button><span class="small muted">Page ${page} of ${pages}</span><button class="btn btn-ghost btn-sm" data-pg="${page + 1}" ${page === pages ? 'disabled' : ''} aria-label="Next page">${icon('chevronRight', 16)}</button></span>`;
+}
+/* Paginate an already-rendered static table by hiding rows (inputs stay in the DOM, so form saves still see every row). */
+function paginateTable(wrap, size = Number(settings().general.pageSize) || 10) {
+  const rows = wrap ? [...wrap.querySelectorAll('tbody > tr:not(.tr-empty)')] : [];
+  if (!rows.length) return;
+  const pg = document.createElement('div'); pg.className = 'pagination'; wrap.after(pg);
+  const go = p => {
+    const pages = Math.max(1, Math.ceil(rows.length / size)); p = Math.min(Math.max(1, p), pages);
+    rows.forEach((r, i) => { r.hidden = i < (p - 1) * size || i >= p * size; });
+    pg.innerHTML = pagerHTML(p, pages, rows.length, size);
+    pg.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => go(Number(b.dataset.pg)));
+  };
+  go(1);
 }
 
 /* Files: upload through the Express API, falling back to inline storage for small files. */
