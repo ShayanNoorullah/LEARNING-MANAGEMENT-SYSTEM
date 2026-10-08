@@ -4,6 +4,8 @@ node_modules/
 .env*.local
 .vercel/
 backend/uploads/
+backend/data/ai-secrets.json
+backend/data/ai-usage.json
 *.log
 .DS_Store
 Thumbs.db

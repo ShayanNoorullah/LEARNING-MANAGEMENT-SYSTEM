@@ -21,7 +21,9 @@ function courseCrumbs(ctx, course, extra = []) {
 }
 function courseTools(ctx, course, session) {
   const zoom = Domain.zoomFor(course, session), help = Domain.helpUrlFor(course), b = brand();
+  const aiTutor = feature('aiTutor') && Domain.aiEnabled() && can('ai', 'use');
   ctx.setTools(`
+    ${aiTutor ? `<button class="btn btn-secondary btn-sm" data-tutor-btn>${icon('sparkles', 16)}<span class="hide-sm">${esc(t('aiTutor'))}</span></button>` : ''}
     <div class="pop-wrap"><button class="btn btn-ghost btn-sm" data-help-btn>${icon('help', 16)}<span class="hide-sm">Help</span></button>
       <div class="popover popover-panel" data-help-pop hidden>
         <div class="pop-head"><b>Need help?</b><small>Our support team usually replies within one working day.</small></div>
@@ -36,6 +38,7 @@ function courseTools(ctx, course, session) {
     App.popover('[data-help-btn]', '[data-help-pop]');
     App.popover('[data-zoom-btn]', '[data-zoom-pop]');
     bindCopyButtons(el);
+    el.querySelector('[data-tutor-btn]')?.addEventListener('click', () => openTutorDrawer(course, session));
   });
 }
 function zoomPanel(zoom, course) {
@@ -73,12 +76,15 @@ function videoBlock(session, unlocked) {
   if (v.type === 'video') return `<div class="video-frame"><video controls preload="metadata" src="${esc(v.src)}"></video></div>`;
   return `<div class="video-frame video-empty">${icon('external', 28)}<b>Recording hosted externally</b><a class="btn btn-primary btn-sm" href="${esc(v.src)}" target="_blank" rel="noopener">Open recording</a></div>`;
 }
-function resourceList(resources, unlocked) {
+function resourceList(resources, unlocked, ctxAI = null) {
   if (!unlocked) return `<p class="muted small">Resources unlock with the ${t('session', true)}.</p>`;
   if (!resources?.length) return emptyState('No resources yet', 'Materials will appear here when your instructor shares them.', 'file');
+  const canSum = ctxAI && feature('aiSummarize') && Domain.aiEnabled() && can('ai', 'use');
   return `<ul class="resource-list">${resources.map(r => {
     const isLink = r.type === 'link';
-    return `<li><span class="res-icon">${icon(fileIcon(r.type), 16)}</span><div class="grow"><b>${esc(r.title)}</b><small class="muted">${isLink ? 'External link' : `${esc(String(r.type || fileExt(r.url)).toUpperCase())}${r.size ? ' · ' + fmtSize(r.size) : ''}`}</small></div><a class="btn btn-ghost btn-sm" href="${esc(r.url)}" ${isLink ? 'target="_blank" rel="noopener"' : `download="${esc(r.fileName || r.title)}"`}>${icon(isLink ? 'external' : 'download', 16)}<span class="hide-sm">${isLink ? 'Open' : 'Download'}</span></a></li>`;
+    return `<li><span class="res-icon">${icon(fileIcon(r.type), 16)}</span><div class="grow"><b>${esc(r.title)}</b><small class="muted">${isLink ? 'External link' : `${esc(String(r.type || fileExt(r.url)).toUpperCase())}${r.size ? ' · ' + fmtSize(r.size) : ''}`}</small></div>
+      ${canSum && !isLink ? `<button type="button" class="btn btn-ghost btn-sm" data-summarize="${esc(r.id)}" title="Summarize with SDC Learn AI">${icon('sparkles', 15)}</button>` : ''}
+      <a class="btn btn-ghost btn-sm" href="${esc(r.url)}" ${isLink ? 'target="_blank" rel="noopener"' : `download="${esc(r.fileName || r.title)}"`}>${icon(isLink ? 'external' : 'download', 16)}<span class="hide-sm">${isLink ? 'Open' : 'Download'}</span></a></li>`;
   }).join('')}</ul>`;
 }
 function sessionStatusFor(user, session, enrollment, progress) {
@@ -182,6 +188,7 @@ App.route('/course/:id', { perm: ['learn', 'courses'], render(ctx) {
         <div class="session-list" data-list>
           <a class="session-row pinned" href="#/course/${course.id}/outline"><span class="s-num">${icon('map', 16)}</span><div class="s-body"><b>Course Outline</b><small>Learning outcomes, modules and the full roadmap.</small></div>${badge('Outline')}</a>
           ${isLearner && assignments.length ? `<a class="session-row pinned" href="#/course/${course.id}/submit"><span class="s-num">${icon('upload', 16)}</span><div class="s-body"><b>Submit ${t('assignment')}</b><small>${pendingCount ? `${pendingCount} pending · upload or replace your work.` : 'Upload or replace your work.'}</small></div>${badge('Submit')}</a>` : ''}
+          ${feature('quizzes') ? `<a class="session-row pinned" href="#/course/${course.id}/quizzes"><span class="s-num">${icon('clipboard', 16)}</span><div class="s-body"><b>${t('quizzes')}</b><small>${Domain.publishedQuizzes(course.id).length} published graded ${t('quizzes', true).toLowerCase()}.</small></div>${badge(t('quizzes'))}</a>` : ''}
           ${sessionGroups(sessions, s => sessionRow(course, s, sessionStatusFor(u, s, enrollment, prog), sessions.indexOf(s) + 1))}
           ${sessions.length ? '' : emptyState(`No ${t('sessions', true)} yet`, `${t('sessions')} will appear here once they are scheduled.`, 'calendar')}
         </div>
@@ -254,7 +261,9 @@ App.route('/course/:id/session/:sid', { perm: ['learn', 'courses'], render(ctx) 
       </div>
       <aside class="stack">
         ${isLearner && unlocked && !done && !Domain.sessionCompletable(s) ? `<p class="note-box small">${icon('clock', 14)} You can mark this ${t('session', true)} complete once it has taken place.</p>` : ''}${isLearner && unlocked && (done || Domain.sessionCompletable(s)) ? `<button class="btn ${done ? 'btn-secondary' : 'btn-primary'} btn-block" data-complete>${icon(done ? 'check' : 'checkSquare', 16)} ${done ? 'Completed — undo' : 'Mark as complete'}</button>` : ''}
-        <div class="card"><div class="card-head"><h3>Resources</h3>${unlocked && s.resources?.length ? `<span class="muted small">${s.resources.length}</span>` : ''}</div>${resourceList(s.resources, unlocked)}</div>
+        ${unlocked && feature('aiPractice') && Domain.aiEnabled() && can('ai', 'use') ? `<button class="btn btn-secondary btn-block" data-practice>${icon('sparkles', 16)} Test my understanding</button>` : ''}
+        ${s.aiPinnedSummary ? `<div class="card"><div class="card-head"><h3>Key concepts ${badge('SDC Learn AI', 'accent')}</h3></div><div class="prose small">${esc(s.aiPinnedSummary.text).replace(/\n/g, '<br>')}</div></div>` : ''}
+        <div class="card"><div class="card-head"><h3>Resources</h3>${unlocked && s.resources?.length ? `<span class="muted small">${s.resources.length}</span>` : ''}</div>${resourceList(s.resources, unlocked, { course, session: s })}</div>
         ${assignment ? `<div class="card"><div class="card-head"><h3>${t('assignment')}</h3>${ast ? badge(ast.status) : ''}</div><p class="strong">${esc(assignment.title)}</p><p class="small muted">${esc(assignment.description || '')}</p><p class="small">${icon('clock', 14)} Due ${fmtDateTime(assignment.dueAt)} · ${assignment.maxMarks} marks</p>${ast?.submission?.status === 'Graded' ? `<p class="small"><b>Grade:</b> ${ast.submission.grade}/${assignment.maxMarks}</p>` : ''}${isLearner ? `<a class="btn btn-primary btn-sm btn-block" href="#/course/${course.id}/submit?assignment=${assignment.id}">${icon('upload', 15)} ${ast?.submission ? 'View / replace submission' : 'Submit ' + t('assignment', true)}</a>` : `<a class="btn btn-ghost btn-sm btn-block" href="#/submissions?assignment=${assignment.id}">View submissions</a>`}</div>` : ''}
         ${zoom && (status === 'Today' || status === 'Upcoming') ? `<div class="card"><div class="card-head"><h3>Live class</h3></div>${zoomPanel(zoom, course).replace(/pop-head/g, 'card-sub')}</div>` : ''}
       </aside>
@@ -268,6 +277,11 @@ App.route('/course/:id/session/:sid', { perm: ['learn', 'courses'], render(ctx) 
     Domain.setSessionComplete(u.id, course.id, s.id, !done);
     toast(done ? `${t('session')} marked as not complete.` : `Nice work! ${t('session')} completed.`);
     if (!done && next && Domain.sessionUnlocked(next, enrollment)) location.hash = `#/course/${course.id}/session/${next.id}`; else ctx.refresh();
+  });
+  ctx.root.querySelector('[data-practice]')?.addEventListener('click', () => startPracticeQuiz(course, s));
+  ctx.root.querySelectorAll('[data-summarize]').forEach(b => b.onclick = () => {
+    const res = (s.resources || []).find(r => r.id === b.dataset.summarize);
+    if (res) summarizeResource(course, s, res);
   });
 } });
 

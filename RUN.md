@@ -59,9 +59,17 @@ Other demo learners and instructors use `@sdclearn.demo` emails too (e.g. `maria
 4. **Certificates** → **Issue** to an eligible learner; verify at `/verify.html`.
 5. **Settings** → change the product name or rename "Learner" to "Trainee" and watch the whole UI update.
 
+### SDC Learn AI (Phase 2)
+1. As coordinator: **Settings → Integrations** → enable a provider (or set env keys) → **Test connection**. Map capabilities under the capability map; turn on AI feature flags in **Features**.
+2. As instructor: open a course → **Quizzes** → **Generate with AI** → review/check → publish. Grade a submission with **AI draft** (accept/edit before save).
+3. As learner: open a session → **Ask Tutor** / **Summarize**; take a graded quiz; run a private practice quiz.
+4. As staff: **At-risk** list → log outreach.
+
+Manual checklist: [docs/testing/SDC-Learn-Manual-Test-Suite-Phase2.xlsx](docs/testing/SDC-Learn-Manual-Test-Suite-Phase2.xlsx).
+
 ## Tests
 
-Logic tests (permissions, course scoping, grading, restricted access, password hashing):
+Logic tests (permissions, course scoping, grading, AI helpers, gateway):
 
 ```bash
 npm test

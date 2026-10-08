@@ -49,6 +49,7 @@ if(IS_VERCEL&&!fs.existsSync(DATA_FILE)&&fs.existsSync(BUNDLED_DATA_FILE))fs.cop
 app.use(async(req,res,next)=>{if(req.path.startsWith('/api/'))await loadFromNeon();next();});
 // Shared state gateway (sign-in, state sync, certificate check) — see state-api.js.
 app.use(require('./state-api'));
+app.use(require('./ai-api')); // SDC Learn AI proxy (OpenAI / Gemini / Azure)
 app.use(cors());app.use(express.json({limit:'10mb'}));app.use(express.urlencoded({extended:true}));
 // Uploaded files are always served as downloads with sniffing disabled, so an upload can never run as a page.
 app.use('/uploads',express.static(UPLOAD_DIR,{setHeaders:res=>{res.setHeader('Content-Disposition','attachment');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Content-Security-Policy',"default-src 'none'");}}));

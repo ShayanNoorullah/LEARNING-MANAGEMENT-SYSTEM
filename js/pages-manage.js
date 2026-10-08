@@ -181,7 +181,7 @@ App.route('/manage/course/:id', { perm: 'courses', render(ctx) {
   if (!course || !Domain.canManageCourse(u, course)) return deniedPage(ctx, `You can't manage this ${t('course', true)}.`);
   const tab = ctx.query.tab || 'overview';
   ctx.setCrumbs([{ label: scopeAll(u) ? t('courses') : `My ${t('courses')}`, href: '#/manage/courses' }, { label: course.title }]);
-  const tabs = [['overview', 'Overview', 'layout'], ['sessions', t('sessions'), 'layers'], ['assignments', t('assignments'), 'clipboard'], ['learners', t('learners'), 'users']];
+  const tabs = [['overview', 'Overview', 'layout'], ['sessions', t('sessions'), 'layers'], ['assignments', t('assignments'), 'clipboard'], ...(feature('quizzes') ? [['quizzes', t('quizzes'), 'clipboard']] : []), ['learners', t('learners'), 'users']];
   ctx.root.innerHTML = `
     <div class="page-head"><div><span class="eyebrow">${esc(course.code || t('course'))} · ${badge(course.status === 'published' ? 'Published' : course.status === 'archived' ? 'Archived' : 'Draft')}</span><h1>${esc(course.title)}</h1><p>${esc(course.tagline || '')}</p></div>
       <div class="page-actions"><a class="btn btn-ghost btn-sm" href="#/course/${course.id}">${icon('eye', 15)} Preview as ${t('learner', true)}</a><button class="btn btn-secondary btn-sm" data-edit-course>${icon('edit', 15)} Edit details</button>${can('courses', 'publish') ? `<button class="btn btn-primary btn-sm" data-toggle-pub>${course.status === 'published' ? 'Unpublish' : 'Publish'}</button>` : ''}</div></div>
@@ -195,7 +195,7 @@ App.route('/manage/course/:id', { perm: 'courses', render(ctx) {
     toast(next === 'published' ? `${t('course')} published.` : `${t('course')} moved to draft.`); ctx.refresh();
   });
   const pane = ctx.root.querySelector('[data-tab]');
-  ({ overview: builderOverview, sessions: builderSessions, assignments: builderAssignments, learners: builderLearners })[tab]?.(pane, course, ctx);
+  ({ overview: builderOverview, sessions: builderSessions, assignments: builderAssignments, quizzes: typeof builderQuizzes === 'function' ? builderQuizzes : null, learners: builderLearners })[tab]?.(pane, course, ctx);
 } });
 
 function builderOverview(pane, course, ctx) {

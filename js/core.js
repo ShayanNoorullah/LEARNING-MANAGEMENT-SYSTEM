@@ -4,7 +4,7 @@
 
 /* ------------------------------------------------------------------ store */
 const DBKEY = 'sdcLearnDB_v1';
-const COLLECTIONS = ['roles', 'users','divisions','programs','courses','batches','sessions','assignments','enrollments','submissions','progress','attendance','results','fees','announcements','messages','notifications','certificates','feedback'];
+const COLLECTIONS = ['roles', 'users','divisions','programs','courses','batches','sessions','assignments','enrollments','submissions','progress','attendance','results','fees','announcements','messages','notifications','certificates','feedback','questionBanks','questions','quizzes','quizAttempts','practiceAttempts','rubrics','atRiskFlags'];
 
 const DEFAULT_SETTINGS = {
   brand: {
@@ -28,7 +28,8 @@ const DEFAULT_SETTINGS = {
     admin: 'Coordinator', admins: 'Coordinators', course: 'Course', courses: 'Courses',
     session: 'Session', sessions: 'Sessions', module: 'Module', batch: 'Batch', batches: 'Batches',
     program: 'Program', programs: 'Programs', division: 'Division', divisions: 'Divisions',
-    assignment: 'Assignment', assignments: 'Assignments', fee: 'Fee', fees: 'Fees'
+    assignment: 'Assignment', assignments: 'Assignments', fee: 'Fee', fees: 'Fees',
+    quiz: 'Quiz', quizzes: 'Quizzes', attempt: 'Attempt', aiTutor: 'SDC Learn AI'
   },
   lms: {
     helpUrl: 'mailto:sdckar@sdckarachi.org.pk?subject=SDC%20Learn%20support',
@@ -39,7 +40,7 @@ const DEFAULT_SETTINGS = {
     lateSubmissions: true,
     completionPercent: 80,
     attendanceWarning: 75,
-    weightAssignments: 40, weightAssessment: 40, weightAttendance: 20,
+    weightAssignments: 35, weightAssessment: 25, weightQuiz: 20, weightAttendance: 20,
     passPercent: 50,
     gradeBands: 'A+:90|A:80|B:70|C:60|D:50',
     certificatePrefix: 'SDC',
@@ -51,9 +52,33 @@ const DEFAULT_SETTINGS = {
     showDemoAccounts: true,
     feedbackAtPercent: 40
   },
-  features: { attendance: true, results: true, certificates: true, fees: true, messages: true, announcements: true, calendar: true, feedback: true },
+  features: {
+    attendance: true, results: true, certificates: true, fees: true, messages: true, announcements: true, calendar: true, feedback: true,
+    ai: true, quizzes: true, aiTutor: true, aiSummarize: true, aiPractice: true, aiEvaluate: true, aiQuizGen: true, aiAtRisk: true
+  },
   auth: { googleEnabled: true, googleSignUpRole: '' },
-  general: { pageSize: 10 }
+  general: { pageSize: 10 },
+  integrations: {
+    aiEnabled: true,
+    productName: 'SDC Learn AI',
+    language: 'en',
+    stripPiiDefault: true,
+    primaryProvider: 'openai',
+    fallbackProvider: 'gemini',
+    defaultProfileId: '',
+    budget: { period: 'month', maxCalls: 5000, maxTokens: 0, hardStop: true },
+    credentialBindings: { byCapability: {}, byCourseId: {}, byRoleId: {} },
+    capabilities: {
+      tutor: { provider: 'openai', model: '', profileId: '', temperature: 0.3 },
+      summarize: { provider: 'openai', model: '', profileId: '', temperature: 0.2 },
+      practiceQuiz: { provider: 'openai', model: '', profileId: '', temperature: 0.4 },
+      quizGenerate: { provider: 'openai', model: '', profileId: '', temperature: 0.4 },
+      quizCheck: { provider: 'openai', model: '', profileId: '', temperature: 0.1 },
+      evaluate: { provider: 'gemini', model: '', profileId: '', temperature: 0.2 },
+      atRisk: { provider: 'openai', model: '', profileId: '', temperature: 0.2 },
+      sessionAssist: { provider: 'openai', model: '', profileId: '', temperature: 0.3 }
+    }
+  }
 };
 
 let _cache = null;
@@ -147,7 +172,9 @@ const PERMISSIONS = [
   ['calendar', 'Calendar', ['view']],
   ['feedback', 'Learner feedback', ['view', 'delete']],
   ['reports', 'Reports', ['view']],
-  ['settings', 'Settings', ['view', 'edit']]
+  ['settings', 'Settings', ['view', 'edit']],
+  ['ai', 'SDC Learn AI', ['view', 'use', 'configure']],
+  ['quizzes', 'Quizzes', ['view', 'create', 'edit', 'delete', 'publish']]
 ];
 const BASES = { admin: 'Staff console', teacher: 'Instructor console', student: 'Learner portal' };
 function roleOf(u) { const id = typeof u === 'string' ? u : u?.role; return db().roles.find(r => r.id === id) || db().roles.find(r => r.id === 'student'); }
@@ -399,8 +426,112 @@ const Domain = {
       (a.audience === 'instructors' && k !== 'student') ||
       (a.audience === 'course' && courseIds.includes(a.courseId))
     )).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || String(b.date).localeCompare(String(a.date)));
+  },
+  /* ---------------- quizzes & SDC Learn AI helpers ---------------- */
+  courseQuizzes(courseId) { return db().quizzes.filter(q => q.courseId === courseId).sort((a, b) => String(a.title).localeCompare(String(b.title))); },
+  publishedQuizzes(courseId) { return Domain.courseQuizzes(courseId).filter(q => q.status === 'published'); },
+  quizQuestions(quiz) { const ids = quiz?.questionIds || []; return ids.map(id => findRecord('questions', id)).filter(Boolean); },
+  scoreObjective(question, answer) {
+    if (!question) return { correct: false, points: 0 };
+    const pts = Number(question.points) || 1;
+    if (question.type === 'mcq_single' || question.type === 'true_false') {
+      const ok = String(answer) === String((question.options || []).find(o => o.correct)?.id);
+      return { correct: ok, points: ok ? pts : 0 };
+    }
+    if (question.type === 'mcq_multi') {
+      const correct = new Set((question.options || []).filter(o => o.correct).map(o => o.id));
+      const picked = new Set(Array.isArray(answer) ? answer : (answer ? [answer] : []));
+      const ok = correct.size === picked.size && [...correct].every(id => picked.has(id));
+      return { correct: ok, points: ok ? pts : 0 };
+    }
+    return { correct: null, points: null }; // short — AI / instructor
+  },
+  gradeQuizAttempt(quiz, answers, aiReviews = {}) {
+    const qs = Domain.quizQuestions(quiz);
+    let score = 0, maxScore = 0, pending = false;
+    const detail = {};
+    qs.forEach(q => {
+      const pts = Number(q.points) || 1;
+      maxScore += pts;
+      if (q.type === 'short') {
+        const rev = aiReviews[q.id];
+        if (rev && rev.points != null) { score += Number(rev.points); detail[q.id] = { ...rev, type: 'short' }; }
+        else pending = true;
+      } else {
+        const r = Domain.scoreObjective(q, answers?.[q.id]);
+        score += r.points || 0;
+        detail[q.id] = r;
+      }
+    });
+    return { score, maxScore, percent: maxScore ? Math.round((score / maxScore) * 100) : 0, pending, detail };
+  },
+  quizAverage(learnerId, courseId) {
+    const quizzes = Domain.publishedQuizzes(courseId);
+    if (!quizzes.length) return null;
+    const scores = quizzes.map(q => {
+      const attempts = db().quizAttempts.filter(a => a.quizId === q.id && a.learnerId === learnerId && a.status === 'Submitted');
+      if (!attempts.length) return null;
+      return Math.max(...attempts.map(a => Number(a.percent) || 0));
+    }).filter(x => x != null);
+    if (!scores.length) return null;
+    return Math.round(sum(scores, x => x) / scores.length);
+  },
+  computeFinalPercent(learnerId, courseId, assessmentOverride) {
+    const L = lms();
+    const wA = Number(L.weightAssignments) || 0, wS = Number(L.weightAssessment) || 0, wQ = Number(L.weightQuiz) || 0, wT = Number(L.weightAttendance) || 0;
+    const totalW = wA + wS + wQ + wT || 1;
+    const aAvg = Domain.assignmentAverage(learnerId, courseId);
+    const qAvg = Domain.quizAverage(learnerId, courseId);
+    const att = Domain.attendanceStats(learnerId, courseId).percent;
+    const assess = assessmentOverride != null ? Number(assessmentOverride) : null;
+    let acc = 0, used = 0;
+    if (aAvg != null && wA) { acc += aAvg * wA; used += wA; }
+    if (assess != null && wS) { acc += assess * wS; used += wS; }
+    if (qAvg != null && wQ) { acc += qAvg * wQ; used += wQ; }
+    if (att != null && wT) { acc += att * wT; used += wT; }
+    if (!used) return null;
+    return Math.round(acc / used);
+  },
+  integrations() { return settings().integrations || DEFAULT_SETTINGS.integrations; },
+  aiEnabled() { return feature('ai') && Domain.integrations().aiEnabled !== false; },
+  aiCap(name) { return (Domain.integrations().capabilities || {})[name] || {}; },
+  refreshAtRiskFlags() {
+    if (!feature('aiAtRisk')) return [];
+    const flags = [];
+    const today = todayISO();
+    db().enrollments.filter(e => e.status !== 'Withdrawn').forEach(en => {
+      const learner = findRecord('users', en.learnerId);
+      if (!learner || kind(learner) !== 'student') return;
+      const factors = [];
+      const prog = Domain.progress(en.learnerId, en.courseId);
+      const sessions = Domain.courseSessions(en.courseId);
+      const past = sessions.filter(s => s.date && s.date < today);
+      if (past.length >= 2 && prog.percent < 30) factors.push(`Low progress (${prog.percent}%) after ${past.length} past sessions`);
+      const miss = Domain.courseAssignments(en.courseId).filter(a => {
+        const st = Domain.assignmentState(a, en.learnerId);
+        return st.status === 'Missing' || (st.status === 'Pending' && a.dueAt && new Date(a.dueAt) < new Date());
+      });
+      if (miss.length) factors.push(`${miss.length} missing/late ${t('assignment', true)}(s)`);
+      const att = Domain.attendanceStats(en.learnerId, en.courseId);
+      if (att.total >= 3 && att.percent != null && att.percent < Number(lms().attendanceWarning || 75)) factors.push(`Attendance ${att.percent}% below warning threshold`);
+      const qAvg = Domain.quizAverage(en.learnerId, en.courseId);
+      if (qAvg != null && qAvg < Number(lms().passPercent || 50)) factors.push(`Quiz average ${qAvg}% below pass mark`);
+      if (!factors.length) return;
+      const level = factors.length >= 3 ? 'High' : factors.length === 2 ? 'Moderate' : 'Low';
+      flags.push({ learnerId: en.learnerId, courseId: en.courseId, level, factors, updatedAt: new Date().toISOString() });
+    });
+    const d = db();
+    const keepNotes = Object.fromEntries((d.atRiskFlags || []).map(f => [`${f.learnerId}:${f.courseId}`, f.outreachNotes || []]));
+    d.atRiskFlags = flags.map(f => {
+      const id = `AR-${f.learnerId}-${f.courseId}`.slice(0, 40);
+      return { id, ...f, status: 'Open', outreachNotes: keepNotes[`${f.learnerId}:${f.courseId}`] || [] };
+    });
+    saveDB(d);
+    return d.atRiskFlags;
   }
 };
+
+function integrations() { return Domain.integrations(); }
 
 function notify(userId, title, message, type = 'System', link = '') {
   if (!userId) return;

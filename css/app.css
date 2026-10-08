@@ -833,3 +833,36 @@ body, .sidebar, .topbar, .card, .stat, .course-card, .session-row, .input { tran
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
 ::view-transition-new(root) { animation: theme-reveal .55s cubic-bezier(.4, 0, .2, 1); }
 @keyframes theme-reveal { from { clip-path: circle(0 at var(--vt-x, 50%) var(--vt-y, 0)); } to { clip-path: circle(150vmax at var(--vt-x, 50%) var(--vt-y, 0)); } }
+
+/* ---------- SDC Learn AI ---------- */
+.ai-badge { display: inline-flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 700; letter-spacing: .02em; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent); padding: 3px 8px; border-radius: 999px; vertical-align: middle; }
+.ai-provider-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.ai-provider .form-grid.tight { gap: 10px; }
+.ai-drawer { position: fixed; inset: 0; z-index: 80; pointer-events: none; opacity: 0; transition: opacity .2s; }
+.ai-drawer.open { pointer-events: auto; opacity: 1; }
+.ai-drawer-backdrop { position: absolute; inset: 0; background: rgba(8, 16, 32, .45); backdrop-filter: blur(2px); }
+.ai-drawer-panel { position: absolute; top: 0; right: 0; height: 100%; width: min(420px, 100%); background: var(--surface); border-left: 1px solid var(--border); box-shadow: -20px 0 50px -30px rgba(0,0,0,.45); display: flex; flex-direction: column; transform: translateX(12px); transition: transform .22s ease; }
+.ai-drawer.open .ai-drawer-panel { transform: none; }
+.ai-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.ai-drawer-head h2 { margin: 6px 0 0; font-size: 1.1rem; }
+.ai-drawer-body { flex: 1; overflow: auto; display: flex; flex-direction: column; min-height: 0; }
+.ai-chat { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.ai-bubble { max-width: 92%; padding: 10px 12px; border-radius: 14px; background: var(--bg); border: 1px solid var(--border); }
+.ai-bubble.user { align-self: flex-end; background: color-mix(in srgb, var(--brand) 12%, var(--surface)); border-color: color-mix(in srgb, var(--brand) 30%, var(--border)); }
+.ai-bubble.assistant { align-self: flex-start; }
+.ai-bubble-text { font-size: .92rem; line-height: 1.45; }
+.ai-bubble-meta { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ai-compose { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); background: var(--surface); }
+.ai-compose .input { flex: 1; resize: none; }
+.ai-summary .prose, .prose { font-size: .92rem; line-height: 1.5; }
+.quiz-attempt .quiz-q { margin: 0 0 14px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius, 12px); }
+.quiz-attempt .sticky-foot { position: sticky; bottom: 0; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px); padding: 12px 0; z-index: 2; }
+.card.tight { padding: 12px; }
+.form-grid.tight { margin-top: 8px; }
+.mt-sm { margin-top: 8px; }
+.danger { color: var(--danger, #b42318); }
+@media (max-width: 640px) {
+  .ai-drawer-panel { width: 100%; }
+  .ai-compose { flex-direction: column; }
+  .ai-provider-grid { grid-template-columns: 1fr; }
+}

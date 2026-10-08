@@ -83,6 +83,15 @@ The hosted deployment uses the Supabase project `idchielsujwfqhiwbsui` (shared w
 
 With the gateway on, passwords are checked on the server, each browser receives only its own password hash, learners can edit only their own profile, and roles/settings/accounts change only for users holding those permissions. Signing out clears the browser's cached copy. Without `SDC_STATE_SECRET` (e.g. plain local development) the app keeps using the direct mode above.
 
+### 5b. SDC Learn AI (Phase 2)
+
+AI calls go through `backend/ai-api.js`. API keys are **never** stored in `localStorage` / demos backups.
+
+1. Copy `.env.example` values for OpenAI / Gemini / Azure OpenAI, **or** paste keys in **Settings → Integrations** (encrypted on the server under `backend/data/ai-secrets.json`).
+2. Optional: set `SDC_AI_SECRETS_KEY` (defaults to `SDC_STATE_SECRET` or `JWT_SECRET`).
+3. Local demo auth for AI uses a short-lived JWT (`SDC_AI_LOCAL_OPEN` defaults on). Set `SDC_AI_LOCAL_OPEN=0` in production when the state gateway is on — then the cloud session token is used.
+4. Turn features on/off under **Settings → Features** (`ai`, `quizzes`, `aiTutor`, …) and map providers under **Integrations → Capability map**.
+
 ## 6. Sign in with Google
 
 Google sign-in runs through **Supabase Auth**, using the same project as §5. Google confirms who the person is; SDC Learn then finds the platform account with the same email, so roles, permissions and courses still come from SDC Learn.
@@ -148,4 +157,6 @@ The pages work from any static host (including opening `login.html` from a local
 - [ ] Use persistent upload storage (Render disk or object storage)
 - [ ] Add the production URL to Supabase Redirect URLs and choose the Google sign-up policy (§6)
 - [ ] Set the real help/support form URL and per-course Zoom links
+- [ ] Configure **SDC Learn AI** (§5b): provider env vars or Integrations UI; set `SDC_AI_LOCAL_OPEN=0` when the gateway is on
+- [ ] Enable only the AI feature flags you need under **Settings → Features**
 - [ ] Download a backup from **Settings → Data** after initial setup

@@ -47,23 +47,68 @@ App.route('/dashboard', { perm: 'dashboard', render(ctx) {
       </div>
     </div>`;
   ctx.root.querySelectorAll('[data-grade]').forEach(b => b.onclick = () => gradeModal(findRecord('submissions', b.dataset.grade), () => ctx.refresh()));
+  // At-risk advisory (W5)
+  if (feature('aiAtRisk') && Domain.aiEnabled() && (can('ai', 'view') || can('ai', 'use'))) {
+    const rank = { High: 0, Moderate: 1, Low: 2 };
+    const flags = (db().atRiskFlags || []).filter(f => courseIds.includes(f.courseId)).sort((a, b) => (rank[a.level] ?? 9) - (rank[b.level] ?? 9));
+    const box = document.createElement('div');
+    box.className = 'card mt';
+    box.innerHTML = `<div class="card-head"><h3>${icon('alert', 16)} At-risk advisories ${badge('SDC Learn AI', 'accent')}</h3><button class="btn btn-ghost btn-sm" data-refresh-risk>${icon('sparkles', 14)} Refresh</button></div>
+      ${flags.length ? `<ul class="mini-list">${flags.slice(0, 8).map(f => `<li><div class="grow"><b>${esc(userName(f.learnerId))}</b><small class="muted block">${esc(courseTitle(f.courseId))} · ${esc(f.factors.join('; '))}</small></div>${badge(f.level, f.level === 'High' ? 'danger' : f.level === 'Moderate' ? 'warning' : 'neutral')}<button class="btn btn-ghost btn-sm" data-note="${f.id}">Note</button></li>`).join('')}</ul><p class="help">Staff-only. Never shown to learners. No automatic penalties.</p>` : emptyState('No at-risk flags', 'Refresh to synthesise attendance, progress, submissions and quizzes.', 'check')}`;
+    ctx.root.appendChild(box);
+    box.querySelector('[data-refresh-risk]').onclick = () => { Domain.refreshAtRiskFlags(); toast('At-risk flags updated.'); ctx.refresh(); };
+    box.querySelectorAll('[data-note]').forEach(b => b.onclick = async () => {
+      const f = findRecord('atRiskFlags', b.dataset.note); if (!f) return;
+      const note = prompt('Outreach note (saved on this advisory):');
+      if (!note) return;
+      updateRecord('atRiskFlags', f.id, { outreachNotes: [...(f.outreachNotes || []), { at: new Date().toISOString(), by: App.user.id, text: note }] });
+      toast('Note saved.'); ctx.refresh();
+    });
+  }
 } });
 
 /* ----------------------------------------------------- Submissions/grading */
 function gradeModal(sub, done) {
   const a = findRecord('assignments', sub.assignmentId), l = findRecord('users', sub.learnerId);
+  const aiBtn = feature('aiEvaluate') && Domain.aiEnabled() && can('ai', 'use') ? `<button class="btn btn-secondary" data-ai-eval>${icon('sparkles', 15)} SDC Learn AI → Evaluate</button>` : '';
   const m = openModal({ title: 'Grade submission', body: `
     <div class="person mb">${avatar(l, 40)}<div><b>${esc(l?.name)}</b><small class="muted block">${esc(a?.title)} · ${esc(courseTitle(sub.courseId))}</small></div></div>
     <ul class="resource-list grade-file"><li><span class="res-icon">${icon('file', 16)}</span><div class="grow"><b class="truncate">${esc(sub.fileName)}</b><small class="muted">${fmtDateTime(sub.uploadedAt)}${sub.size ? ' · ' + fmtSize(sub.size) : ''} · ${badge(sub.status)}</small></div><a class="btn btn-ghost btn-sm" href="${esc(sub.fileUrl)}" download="${esc(sub.fileName)}" target="_blank" rel="noopener">${icon('download', 15)} Download</a></li></ul>
-    <form class="grade-form" novalidate><div class="form-grid"><div class="field"><label class="label" for="g-m">Marks (out of ${a?.maxMarks})</label><input id="g-m" class="input" type="number" name="grade" min="0" max="${a?.maxMarks}" step="0.5" value="${sub.grade ?? ''}" required autofocus></div><div class="field"><label class="label">Quick feedback</label><div class="chips">${['Excellent work', 'Good effort', 'Needs improvement', 'Please resubmit'].map(x => `<button type="button" class="chip" data-fb="${x}">${x}</button>`).join('')}</div></div><div class="field full"><label class="label" for="g-f">Feedback</label><textarea id="g-f" class="input" rows="4" name="feedback">${esc(sub.feedback || '')}</textarea></div></div></form>`,
-    footer: `<button class="btn btn-ghost" data-modal-close>Cancel</button><button class="btn btn-primary" data-save>Save grade</button>` });
+    <form class="grade-form" novalidate><div class="form-grid"><div class="field"><label class="label" for="g-m">Marks (out of ${a?.maxMarks})</label><input id="g-m" class="input" type="number" name="grade" min="0" max="${a?.maxMarks}" step="0.5" value="${sub.grade ?? ''}" required autofocus></div><div class="field"><label class="label">Quick feedback</label><div class="chips">${['Excellent work', 'Good effort', 'Needs improvement', 'Please resubmit'].map(x => `<button type="button" class="chip" data-fb="${x}">${x}</button>`).join('')}</div></div><div class="field full"><label class="label" for="g-f">Feedback</label><textarea id="g-f" class="input" rows="4" name="feedback">${esc(sub.feedback || '')}</textarea></div><p class="help" data-ai-hint hidden></p></div></form>`,
+    footer: `<button class="btn btn-ghost" data-modal-close>Cancel</button>${aiBtn}<button class="btn btn-primary" data-save>Save grade</button>` });
   const form = m.querySelector('form');
+  let aiDraft = sub.aiDraft || null;
   m.querySelectorAll('[data-fb]').forEach(b => b.onclick = () => { form.feedback.value = form.feedback.value ? `${form.feedback.value} ${b.dataset.fb}.` : `${b.dataset.fb}.`; });
+  m.querySelector('[data-ai-eval]')?.addEventListener('click', async () => {
+    const btn = m.querySelector('[data-ai-eval]'); btn.disabled = true; btn.innerHTML = `${icon('sparkles', 15)} Drafting…`;
+    try {
+      const ext = (sub.fileName || '').split('.').pop()?.toLowerCase();
+      const binary = ['pbix', 'twbx', 'xlsx', 'xls', 'zip', 'pptx'].includes(ext);
+      const rubric = (db().rubrics || []).find(r => r.assignmentId === a?.id);
+      const system = 'You are SDC Learn AI helping an instructor draft formative feedback. English only. Return JSON: {"suggestedGrade":number,"feedback":"markdown-ish plain text with Strengths, Deficiencies, Guidance","confidence":"low|medium|high","checklistOnly":boolean}. Never invent grades when the file cannot be read.';
+      const prompt = `Assignment: ${a?.title}\nMax marks: ${a?.maxMarks}\nBrief: ${a?.description || ''}\nRubric: ${rubric ? JSON.stringify(rubric.criteria) : 'none'}\nLearner file: ${sub.fileName} (${ext})\n${binary ? 'File is binary/non-extractable in this pass — provide checklist-style comments only and set checklistOnly true; suggestedGrade null.' : 'Assume text/PDF extractable content; draft criterion-aligned feedback and a suggested numeric grade.'}\nPrior feedback chips context optional.`;
+      const out = await SDCAI.call('evaluate', { system, prompt, scrubNames: [l?.name, l?.email, l?.regNo], maxTokens: 1200 });
+      let parsed = null;
+      try { parsed = JSON.parse((out.text || '').replace(/```json|```/g, '').trim()); } catch (e) { parsed = { feedback: out.text, suggestedGrade: null, confidence: 'low' }; }
+      aiDraft = { at: new Date().toISOString(), model: out.model, provider: out.provider, raw: out.text, parsed };
+      if (parsed.feedback) form.feedback.value = parsed.feedback;
+      if (parsed.suggestedGrade != null && !parsed.checklistOnly) form.grade.value = Math.min(Number(a.maxMarks), Math.max(0, Number(parsed.suggestedGrade)));
+      const hint = m.querySelector('[data-ai-hint]');
+      hint.hidden = false;
+      hint.innerHTML = `${badge('SDC Learn AI draft', 'accent')} ${esc(parsed.confidence || 'medium')} confidence · review before saving. Draft is not published until you Save.`;
+      toast('AI draft filled — review and Save to apply.');
+    } catch (err) { toast(err.message || 'Evaluate failed.', 'error'); }
+    finally { btn.disabled = false; btn.innerHTML = `${icon('sparkles', 15)} SDC Learn AI → Evaluate`; }
+  });
   m.querySelector('[data-save]').onclick = () => {
     const g = Number(form.grade.value);
     if (form.grade.value === '' || !Number.isFinite(g) || g < 0 || g > Number(a.maxMarks)) return toast(`Marks must be between 0 and ${a.maxMarks}.`, 'error');
-    updateRecord('submissions', sub.id, { grade: g, feedback: form.feedback.value.trim(), status: 'Graded', gradedAt: new Date().toISOString(), gradedBy: App.user.id });
-    notify(sub.learnerId, 'Assignment graded', `${a.title} — ${g}/${a.maxMarks}`, 'Grade', '#/assignments');
+    const feedback = form.feedback.value.trim();
+    const patch = { grade: g, feedback, status: 'Graded', gradedAt: new Date().toISOString(), gradedBy: App.user.id };
+    if (aiDraft) patch.aiDraft = { ...aiDraft, finalGrade: g, finalFeedback: feedback };
+    if (aiDraft && feedback) patch.aiAssisted = true;
+    updateRecord('submissions', sub.id, patch);
+    notify(sub.learnerId, 'Assignment graded', `${a.title} — ${g}/${a.maxMarks}${aiDraft ? ' (AI-assisted review)' : ''}`, 'Grade', '#/assignments');
     m.close(); toast('Grade saved and learner notified.'); App.syncBadges(); done?.();
   };
 }
@@ -166,10 +211,16 @@ function learnerAttendance(ctx) {
 /* --------------------------------------------------------------- Results */
 function computeResult(learnerId, courseId, assessment) {
   const c = lms(), att = Domain.attendanceStats(learnerId, courseId).percent, asg = Domain.assignmentAverage(learnerId, courseId);
-  const parts = [[asg, Number(c.weightAssignments)], [assessment === '' || assessment == null ? null : Number(assessment), Number(c.weightAssessment)], [att, Number(c.weightAttendance)]].filter(([v, w]) => v !== null && v !== undefined && w > 0);
+  const quiz = Domain.quizAverage(learnerId, courseId);
+  const parts = [
+    [asg, Number(c.weightAssignments)],
+    [assessment === '' || assessment == null ? null : Number(assessment), Number(c.weightAssessment)],
+    [quiz, Number(c.weightQuiz) || 0],
+    [att, Number(c.weightAttendance)]
+  ].filter(([v, w]) => v !== null && v !== undefined && w > 0);
   const totalW = sum(parts, p => p[1]);
   const finalPct = totalW ? Math.round(sum(parts, p => p[0] * p[1]) / totalW) : null;
-  return { assignmentAvg: asg, attendancePct: att, finalPct, grade: Domain.gradeFor(finalPct) };
+  return { assignmentAvg: asg, attendancePct: att, quizAvg: quiz, finalPct, grade: Domain.gradeFor(finalPct) };
 }
 App.route('/results', { perm: 'results', feature: 'results', render(ctx) {
   const u = ctx.user;
@@ -187,16 +238,16 @@ App.route('/results', { perm: 'results', feature: 'results', render(ctx) {
   const courses = Domain.visibleCourses(u);
   if (!courses.length) { ctx.root.innerHTML = pageHead('Results') + emptyState(`No ${t('courses', true)}`, '', 'chart'); return; }
   let courseId = ctx.query.course || courses[0].id;
-  ctx.root.innerHTML = `${pageHead('Results', `Final % = ${t('assignments', true)} ${c.weightAssignments}% + assessment ${c.weightAssessment}% + attendance ${c.weightAttendance}% (weights configurable in Settings). Pass mark ${c.passPercent}%.`)}
+  ctx.root.innerHTML = `${pageHead('Results', `Final % = ${t('assignments', true)} ${c.weightAssignments}% + assessment ${c.weightAssessment}% + ${t('quizzes', true)} ${c.weightQuiz || 0}% + attendance ${c.weightAttendance}% (Settings → Learning). Pass mark ${c.passPercent}%.`)}
     <div class="toolbar"><select class="input" data-course aria-label="${t('course')}">${courses.map(co => `<option value="${co.id}" ${co.id === courseId ? 'selected' : ''}>${esc(co.title)}</option>`).join('')}</select><span class="grow"></span><button class="btn btn-ghost btn-sm" data-export>${icon('download', 15)} Export</button>${can('results', 'edit') ? `<button class="btn btn-primary btn-sm" data-save>${icon('check', 15)} Save results</button>` : ''}</div>
     <div class="card" data-box></div>`;
   const draw = () => {
     const learners = Domain.courseLearners(courseId);
     const box = ctx.root.querySelector('[data-box]');
     if (!learners.length) { box.innerHTML = emptyState(`No ${t('learners', true)} enrolled`, '', 'users'); return; }
-    box.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>${t('learner')}</th><th>${t('assignments')}</th><th>Attendance</th><th>Assessment %</th><th>Final</th><th>Grade</th><th>Remarks</th><th>Publish</th></tr></thead><tbody>${learners.map(({ user: l }) => {
+    box.innerHTML = `<div class="table-wrap"><table class="table"><thead><tr><th>${t('learner')}</th><th>${t('assignments')}</th><th>${t('quizzes')}</th><th>Attendance</th><th>Assessment %</th><th>Final</th><th>Grade</th><th>Remarks</th><th>Publish</th></tr></thead><tbody>${learners.map(({ user: l }) => {
       const r = db().results.find(x => x.learnerId === l.id && x.courseId === courseId), calc = computeResult(l.id, courseId, r?.assessment);
-      return `<tr data-l="${l.id}"><td data-label="${t('learner')}" class="td-primary"><b>${esc(l.name)}</b><small class="muted block">${esc(l.regNo || l.email)}</small></td><td data-label="${t('assignments')}">${calc.assignmentAvg ?? '—'}${calc.assignmentAvg != null ? '%' : ''}</td><td data-label="Attendance">${calc.attendancePct ?? '—'}${calc.attendancePct != null ? '%' : ''}</td><td data-label="Assessment"><input class="input input-sm w-80" type="number" min="0" max="100" data-assess value="${r?.assessment ?? ''}" aria-label="Assessment percent"></td><td data-label="Final" data-final><b>${calc.finalPct ?? '—'}${calc.finalPct != null ? '%' : ''}</b></td><td data-label="Grade" data-grade>${badge(calc.grade, calc.grade === 'F' ? 'danger' : calc.grade === '—' ? 'neutral' : 'success')}</td><td data-label="Remarks"><input class="input input-sm" data-remarks value="${esc(r?.remarks || '')}" aria-label="Remarks"></td><td data-label="Publish"><label class="switch"><input type="checkbox" data-pub ${r?.published ? 'checked' : ''}><span class="switch-track"></span></label></td></tr>`;
+      return `<tr data-l="${l.id}"><td data-label="${t('learner')}" class="td-primary"><b>${esc(l.name)}</b><small class="muted block">${esc(l.regNo || l.email)}</small></td><td data-label="${t('assignments')}">${calc.assignmentAvg ?? '—'}${calc.assignmentAvg != null ? '%' : ''}</td><td data-label="${t('quizzes')}">${calc.quizAvg ?? '—'}${calc.quizAvg != null ? '%' : ''}</td><td data-label="Attendance">${calc.attendancePct ?? '—'}${calc.attendancePct != null ? '%' : ''}</td><td data-label="Assessment"><input class="input input-sm w-80" type="number" min="0" max="100" data-assess value="${r?.assessment ?? ''}" aria-label="Assessment percent"></td><td data-label="Final" data-final><b>${calc.finalPct ?? '—'}${calc.finalPct != null ? '%' : ''}</b></td><td data-label="Grade" data-grade>${badge(calc.grade, calc.grade === 'F' ? 'danger' : calc.grade === '—' ? 'neutral' : 'success')}</td><td data-label="Remarks"><input class="input input-sm" data-remarks value="${esc(r?.remarks || '')}" aria-label="Remarks"></td><td data-label="Publish"><label class="switch"><input type="checkbox" data-pub ${r?.published ? 'checked' : ''}><span class="switch-track"></span></label></td></tr>`;
     }).join('')}</tbody></table></div>`;
     paginateTable(box.querySelector('.table-wrap'));
     box.querySelectorAll('[data-assess]').forEach(inp => inp.oninput = () => { const tr = inp.closest('tr'), calc = computeResult(tr.dataset.l, courseId, inp.value); tr.querySelector('[data-final]').innerHTML = `<b>${calc.finalPct ?? '—'}${calc.finalPct != null ? '%' : ''}</b>`; tr.querySelector('[data-grade]').innerHTML = badge(calc.grade, calc.grade === 'F' ? 'danger' : calc.grade === '—' ? 'neutral' : 'success'); });
@@ -497,12 +548,127 @@ App.route('/feedback', { perm: 'feedback', feature: 'feedback', render(ctx) {
   });
 } });
 
+/* ------------------------------------------- SDC Learn AI Integrations */
+async function renderIntegrationsPane(pane, ctx) {
+  const canCfg = can('ai', 'configure') || can('settings', 'edit');
+  const integ = clone(Domain.integrations());
+  const caps = Object.keys(DEFAULT_SETTINGS.integrations.capabilities);
+  let status = { profiles: [], env: {}, usage: {} };
+  try { status = await SDCAI.status(); } catch (e) { status.error = e.message; }
+  const providers = [
+    { id: 'openai', label: 'OpenAI', hint: 'Chat Completions API' },
+    { id: 'gemini', label: 'Google Gemini', hint: 'Generative Language API' },
+    { id: 'azure_openai', label: 'Azure OpenAI', hint: 'Endpoint + deployment' }
+  ];
+  pane.innerHTML = `
+    <div class="stack">
+      <div class="card"><div class="row-between wrap gap-sm"><div><h3>${icon('sparkles', 18)} SDC Learn AI</h3><p class="small muted">Provider keys stay on the server. Capability routing is saved with your platform settings.</p></div>
+        <label class="switch">${integ.aiEnabled !== false ? '' : ''}<input type="checkbox" data-ai-master ${integ.aiEnabled !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span class="switch-track"></span><span class="small">Master switch</span></label></div>
+        ${status.error ? `<p class="help danger">${esc(status.error)}</p>` : `<p class="help">Usage this month: <b>${status.usage?.calls || 0}</b> calls · <b>${status.usage?.tokens || 0}</b> tokens</p>`}
+      </div>
+      <div class="ai-provider-grid">${providers.map(p => {
+        const prof = (status.profiles || []).find(x => x.provider === p.id);
+        const envOn = status.env?.[p.id];
+        return `<div class="card ai-provider" data-prov="${p.id}"><div class="row-between"><b>${esc(p.label)}</b>${prof || envOn ? badge('Configured', 'success') : badge('Not set', 'neutral')}</div>
+          <p class="small muted">${esc(p.hint)}${prof?.maskedKey ? ' · Key ' + esc(prof.maskedKey) : envOn ? ' · Env var set' : ''}</p>
+          <div class="form-grid tight">
+            <div class="field"><label class="label">API key</label><input class="input" type="password" data-key placeholder="${prof?.maskedKey || 'sk-… / AIza…'}" ${canCfg ? '' : 'disabled'}></div>
+            <div class="field"><label class="label">Default model</label><input class="input" data-model value="${esc(prof?.model || '')}" placeholder="gpt-4o-mini / gemini-2.0-flash" ${canCfg ? '' : 'disabled'}></div>
+            ${p.id === 'azure_openai' ? `<div class="field full"><label class="label">Endpoint</label><input class="input" data-endpoint value="${esc(prof?.endpoint || '')}" placeholder="https://….openai.azure.com" ${canCfg ? '' : 'disabled'}></div>
+              <div class="field"><label class="label">Deployment</label><input class="input" data-deploy value="${esc(prof?.deployment || '')}" ${canCfg ? '' : 'disabled'}></div>
+              <div class="field"><label class="label">API version</label><input class="input" data-apiver value="${esc(prof?.apiVersion || '2024-08-01-preview')}" ${canCfg ? '' : 'disabled'}></div>` : `<div class="field full"><label class="label">Base URL (optional)</label><input class="input" data-base value="${esc(prof?.baseUrl || '')}" placeholder="Leave blank for default" ${canCfg ? '' : 'disabled'}></div>`}
+          </div>
+          <div class="row gap-sm wrap mt-sm">${canCfg ? `<button class="btn btn-secondary btn-sm" data-save-prof>${icon('check', 14)} Save profile</button><button class="btn btn-ghost btn-sm" data-test-prov>${icon('sparkles', 14)} Test</button>` : badge('View only')}</div>
+        </div>`;
+      }).join('')}</div>
+      <div class="card"><h3>Capability map</h3><p class="small muted mb">Each SDC Learn AI feature can use a different provider and model.</p>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Capability</th><th>Provider</th><th>Model override</th></tr></thead><tbody>
+          ${caps.map(cap => {
+            const c = integ.capabilities[cap] || {};
+            return `<tr data-cap="${cap}"><td><b>${esc(cap)}</b></td>
+              <td><select class="input" data-cap-prov ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${c.provider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></td>
+              <td><input class="input" data-cap-model value="${esc(c.model || '')}" placeholder="Use profile default" ${canCfg ? '' : 'disabled'}></td></tr>`;
+          }).join('')}
+        </tbody></table></div>
+        <div class="form-grid mt"><div class="field"><label class="label">Primary provider</label><select class="input" data-primary ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${integ.primaryProvider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></div>
+          <div class="field"><label class="label">Fallback provider</label><select class="input" data-fallback ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${integ.fallbackProvider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></div>
+          <div class="field"><label class="label">Monthly call budget</label><input class="input" type="number" data-budget-calls value="${integ.budget?.maxCalls ?? 5000}" ${canCfg ? '' : 'disabled'}></div>
+          <div class="field"><label class="label">Hard stop at budget</label><label class="check"><input type="checkbox" data-budget-hard ${integ.budget?.hardStop !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span>Disable AI actions when exceeded</span></label></div>
+          <div class="field"><label class="label">Strip PII from prompts</label><label class="check"><input type="checkbox" data-strip ${integ.stripPiiDefault !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span>Redact names, emails, phones, CNIC, reg. nos.</span></label></div>
+        </div>
+        ${canCfg ? `<div class="form-foot"><button class="btn btn-primary" data-save-map>${icon('check', 16)} Save Integrations settings</button></div>` : ''}
+      </div>
+    </div>`;
+  pane.querySelector('[data-ai-master]')?.addEventListener('change', e => {
+    const d = db(); d.settings.integrations = { ...Domain.integrations(), aiEnabled: e.target.checked }; saveDB(d); toast(e.target.checked ? 'SDC Learn AI enabled.' : 'SDC Learn AI disabled.');
+  });
+  pane.querySelectorAll('[data-save-prof]').forEach(btn => btn.onclick = async () => {
+    const card = btn.closest('[data-prov]'); const provider = card.dataset.prov;
+    const existing = (status.profiles || []).find(x => x.provider === provider);
+    try {
+      await SDCAI.configure({
+        profileId: existing?.id, name: provider, provider,
+        apiKey: card.querySelector('[data-key]').value,
+        model: card.querySelector('[data-model]').value,
+        endpoint: card.querySelector('[data-endpoint]')?.value,
+        deployment: card.querySelector('[data-deploy]')?.value,
+        apiVersion: card.querySelector('[data-apiver]')?.value,
+        baseUrl: card.querySelector('[data-base]')?.value
+      });
+      toast(`${provider} profile saved.`); renderIntegrationsPane(pane, ctx);
+    } catch (err) { toast(err.message, 'error'); }
+  });
+  pane.querySelectorAll('[data-test-prov]').forEach(btn => btn.onclick = async () => {
+    const card = btn.closest('[data-prov]'); const provider = card.dataset.prov;
+    const existing = (status.profiles || []).find(x => x.provider === provider);
+    btn.disabled = true;
+    try {
+      const j = await SDCAI.test({
+        provider, profileId: existing?.id,
+        apiKey: card.querySelector('[data-key]').value || undefined,
+        model: card.querySelector('[data-model]').value,
+        endpoint: card.querySelector('[data-endpoint]')?.value,
+        deployment: card.querySelector('[data-deploy]')?.value,
+        apiVersion: card.querySelector('[data-apiver]')?.value,
+        baseUrl: card.querySelector('[data-base]')?.value
+      });
+      toast(`Connected · ${j.provider} / ${j.model}`);
+    } catch (err) { toast(err.message, 'error'); }
+    finally { btn.disabled = false; }
+  });
+  pane.querySelector('[data-save-map]')?.addEventListener('click', () => {
+    const d = db();
+    const capabilities = {};
+    pane.querySelectorAll('tr[data-cap]').forEach(tr => {
+      capabilities[tr.dataset.cap] = {
+        ...(Domain.integrations().capabilities?.[tr.dataset.cap] || {}),
+        provider: tr.querySelector('[data-cap-prov]').value,
+        model: tr.querySelector('[data-cap-model]').value
+      };
+    });
+    d.settings.integrations = {
+      ...Domain.integrations(),
+      primaryProvider: pane.querySelector('[data-primary]').value,
+      fallbackProvider: pane.querySelector('[data-fallback]').value,
+      stripPiiDefault: pane.querySelector('[data-strip]').checked,
+      budget: {
+        ...(Domain.integrations().budget || {}),
+        maxCalls: Number(pane.querySelector('[data-budget-calls]').value) || 0,
+        hardStop: pane.querySelector('[data-budget-hard]').checked
+      },
+      capabilities
+    };
+    saveDB(d);
+    toast('Integrations settings saved.');
+  });
+}
+
 /* --------------------------------------------------------------- Settings */
 App.route('/settings', { perm: 'settings', render(ctx) {
   ctx.setCrumbs([{ label: 'Settings' }]);
   const tab = ctx.query.tab || 'brand';
   const s = settings();
-  const tabs = [['brand', 'Branding', 'building'], ['appearance', 'Appearance', 'sun'], ['terms', 'Terminology', 'book'], ['learning', 'Learning', 'cap'], ['auth', 'Sign-in', 'shield'], ['features', 'Features', 'grid'], ['data', 'Data', 'database']];
+  const tabs = [['brand', 'Branding', 'building'], ['appearance', 'Appearance', 'sun'], ['terms', 'Terminology', 'book'], ['learning', 'Learning', 'cap'], ['integrations', 'Integrations', 'sparkles'], ['auth', 'Sign-in', 'shield'], ['features', 'Features', 'grid'], ['data', 'Data', 'database']];
   const groups = {
     brand: { section: 'brand', fields: [
       { name: 'productName', label: 'Product name', required: true }, { name: 'orgShort', label: 'Short organisation name', required: true }, { name: 'orgName', label: 'Organisation name', required: true, full: true },
@@ -523,7 +689,7 @@ App.route('/settings', { perm: 'settings', render(ctx) {
       { name: 'allowedTypes', label: 'Accepted submission file types', full: true, help: 'Comma-separated extensions, e.g. xlsx, docx, pdf, pbix, ipynb' }, { name: 'inlineFallbackMB', label: 'Browser fallback limit (MB)', type: 'number', min: 0, max: 5, step: 0.5, help: 'Small files are kept in the browser if the upload server is offline. 0 disables.' },
       { name: 'lateSubmissions', label: 'Late submissions', type: 'checkbox', checkLabel: 'Allow late submissions (per-assignment setting still applies)' },
       { name: 'attendanceWarning', label: 'Attendance warning (%)', type: 'number', min: 0, max: 100 }, { name: 'completionPercent', label: 'Certificate eligibility — progress (%)', type: 'number', min: 0, max: 100 }, { name: 'passPercent', label: 'Pass mark (%)', type: 'number', min: 0, max: 100 },
-      { name: 'weightAssignments', label: `Weight — ${t('assignments', true)} (%)`, type: 'number', min: 0, max: 100 }, { name: 'weightAssessment', label: 'Weight — final assessment (%)', type: 'number', min: 0, max: 100 }, { name: 'weightAttendance', label: 'Weight — attendance (%)', type: 'number', min: 0, max: 100 },
+      { name: 'weightAssignments', label: `Weight — ${t('assignments', true)} (%)`, type: 'number', min: 0, max: 100 }, { name: 'weightAssessment', label: 'Weight — final assessment (%)', type: 'number', min: 0, max: 100 }, { name: 'weightQuiz', label: `Weight — ${t('quizzes', true)} (%)`, type: 'number', min: 0, max: 100 }, { name: 'weightAttendance', label: 'Weight — attendance (%)', type: 'number', min: 0, max: 100 },
       { name: 'gradeBands', label: 'Grade bands', full: true, help: 'Grade:minimum % pairs separated by |, highest first. Anything below the last band is F.' },
       { name: 'feedbackAtPercent', label: 'Ask for feedback at progress (%)', type: 'number', min: 0, max: 100 }, { name: 'certificatePrefix', label: 'Certificate number prefix' }, { name: 'currency', label: 'Currency code' },
       { name: 'programTypes', label: 'Program types', full: true, help: 'value:Label pairs separated by |' }, { name: 'levels', label: 'Levels', full: true, help: 'Separated by |' },
@@ -534,11 +700,18 @@ App.route('/settings', { perm: 'settings', render(ctx) {
       { name: 'googleEnabled', label: 'Google', type: 'checkbox', checkLabel: 'Show "Continue with Google" on the sign-in page (when Google is enabled in Supabase)' },
       { name: 'googleSignUpRole', label: 'New Google users', type: 'select', options: () => db().roles.map(r => ({ value: r.id, label: `Create an account with role: ${r.name}` })), placeholderOption: 'Do not create accounts — only existing users can sign in', full: true, help: 'Existing users are always matched by their email address.' }
     ] },
-    features: { section: 'features', fields: Object.keys(DEFAULT_SETTINGS.features).map(k => ({ name: k, label: k, type: 'checkbox', checkLabel: { attendance: 'Attendance tracking', results: 'Results & grading', certificates: 'Certificates & verification', fees: `${t('fees')} & payments`, messages: 'Private messaging', announcements: 'Announcements', calendar: 'Training calendar', feedback: 'Mid-course feedback prompts' }[k] })) }
+    features: { section: 'features', fields: Object.keys(DEFAULT_SETTINGS.features).map(k => ({ name: k, label: k, type: 'checkbox', checkLabel: {
+      attendance: 'Attendance tracking', results: 'Results & grading', certificates: 'Certificates & verification', fees: `${t('fees')} & payments`, messages: 'Private messaging', announcements: 'Announcements', calendar: 'Training calendar', feedback: 'Mid-course feedback prompts',
+      ai: 'SDC Learn AI (master)', quizzes: 'Graded quizzes', aiTutor: 'AI Tutor', aiSummarize: 'Resource summarizer', aiPractice: 'Private practice quizzes', aiEvaluate: 'Assignment evaluator', aiQuizGen: 'Quiz generator', aiAtRisk: 'At-risk advisories'
+    }[k] || k })) }
   };
   ctx.root.innerHTML = `${pageHead('Settings', 'Everything here is applied instantly across the platform — no code changes needed.')}
     <div class="tabs" role="tablist">${tabs.map(([k, l, i]) => `<a role="tab" class="tab ${tab === k ? 'active' : ''}" href="#/settings?tab=${k}" aria-selected="${tab === k}">${icon(i, 16)} ${esc(l)}</a>`).join('')}</div><div data-pane></div>`;
   const pane = ctx.root.querySelector('[data-pane]');
+  if (tab === 'integrations') {
+    renderIntegrationsPane(pane, ctx);
+    return;
+  }
   if (tab === 'data') {
     const d = db(), size = new Blob([localStorage.getItem(DBKEY) || '']).size;
     pane.innerHTML = `<div class="grid-2"><div class="card"><h3>Backup & restore</h3><p class="small muted">Download a JSON backup of every record and setting, or restore from a previous backup.</p><div class="row gap-sm wrap"><button class="btn btn-secondary" data-backup>${icon('download', 16)} Download backup</button><label class="btn btn-ghost file-btn" ${can('settings', 'edit') ? '' : 'hidden'}>${icon('upload', 16)} Restore backup<input type="file" accept=".json,application/json" hidden data-restore></label></div></div>
@@ -570,7 +743,7 @@ App.route('/settings', { perm: 'settings', render(ctx) {
     e.preventDefault();
     const r = readForm(form, g.fields);
     const miss = g.fields.find(f => f.required && !r[f.name]); if (miss) return toast(`${miss.label} is required.`, 'error');
-    if (tab === 'learning') { const w = Number(r.weightAssignments) + Number(r.weightAssessment) + Number(r.weightAttendance); if (w <= 0) return toast('At least one result weight must be greater than zero.', 'error'); r.allowedTypes = csvList(r.allowedTypes).join(','); }
+    if (tab === 'learning') { const w = Number(r.weightAssignments) + Number(r.weightAssessment) + Number(r.weightQuiz || 0) + Number(r.weightAttendance); if (w <= 0) return toast('At least one result weight must be greater than zero.', 'error'); r.allowedTypes = csvList(r.allowedTypes).join(','); }
     const d = db(); d.settings[g.section] = { ...d.settings[g.section], ...r }; saveDB(d);
     applyTheme(); toast('Settings saved.'); App.mountShell(); App.render(true);
   };

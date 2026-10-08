@@ -6,7 +6,7 @@
 
 **The online learning platform of Skill Development Council Karachi**
 
-Live Zoom classes · recorded sessions · resources · assignments · certificates — in one place.
+Live Zoom classes · recorded sessions · resources · assignments · quizzes · certificates — plus **SDC Learn AI** tutoring, practice, and draft grading.
 
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat-square&logo=html5&logoColor=white)
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat-square&logo=css3&logoColor=white)
@@ -29,7 +29,7 @@ SDC Learn turns SDC Karachi's training programmes — diplomas, certificates, wo
 
 | 🎓 Learners | 🧑‍🏫 Instructors | 🛡️ Coordinators |
 |---|---|---|
-| Attend live classes, rewatch recordings, download resources, submit assignments, track progress and earn verifiable certificates | Build courses session by session, share material, grade submissions, take attendance and publish results | Run the catalogue, enrollments, people, **roles & permissions**, fees, certificates, reports and every platform setting |
+| Attend live classes, rewatch recordings, download resources, submit assignments, take graded quizzes, ask the **AI Tutor**, practise privately, track progress and earn verifiable certificates | Build courses session by session, share material, generate/check quizzes with AI, grade with optional **AI draft feedback**, take attendance and publish results | Run the catalogue, enrollments, people, **roles & permissions**, fees, certificates, reports, **Integrations** (OpenAI / Gemini / Azure), feature flags and every platform setting |
 
 ---
 
@@ -70,16 +70,21 @@ Live: **https://ead-university-portal-ten.vercel.app** · Full setup, Google sig
 - **Zoom** panel (join link, meeting ID, passcode, copy) and **Help** panel on every course page
 - Course outline with outcomes and module roadmap
 - Drag-and-drop **assignment submission**, replace until graded
+- **Graded quizzes** (MCQ / short answer) with `quizAvg` in results weights
+- **SDC Learn AI Tutor** drawer and **English summarizer** on sessions/resources
+- Private **AI practice quizzes** (not graded)
 - Calendar, attendance, results, certificates, fees, messages
 
 </td>
 <td width="50%" valign="top">
 
 ### 🛠️ Teaching & administration
-- **Course builder** — sessions, recordings, resources, per-session Zoom, assignments, reordering
-- Grading with marks, quick feedback and notifications
+- **Course builder** — sessions, recordings, resources, per-session Zoom, assignments, quizzes, reordering
+- **AI quiz generate & check** before publish
+- Grading with marks, quick feedback, optional **AI draft-only** evaluator (staff must accept)
 - Attendance per session with bulk marking
-- Weighted results with configurable grade bands
+- Weighted results (`assignmentAvg` + `quizAvg`) with configurable grade bands
+- Staff **at-risk** flags from LMS signals + outreach log
 - Enrollments with **full or per-session access**
 - Certificates with **public verification** page
 - Fees, announcements, messaging, reports & CSV exports
@@ -93,7 +98,7 @@ Live: **https://ead-university-portal-ten.vercel.app** · Full setup, Google sig
 ### 🔐 Roles & permissions
 - **Sign in with Google** (via Supabase Auth) or email & password
 - Create unlimited roles; full create / edit / duplicate / delete
-- **20 modules × view · create · edit · delete · publish**
+- **20+ modules × view · create · edit · delete · publish** (includes AI & quizzes)
 - **Course access**: all, assigned, enrolled or hand-picked courses
 - Menus, pages and buttons adapt automatically
 
@@ -107,6 +112,7 @@ Live: **https://ead-university-portal-ten.vercel.app** · Full setup, Google sig
 - Result weights, pass mark, certificate rules
 - Program types, levels, delivery modes, fee types
 - Feature toggles for every optional module
+- **Integrations** — OpenAI / Gemini / Azure OpenAI credentials, models, capability map, budgets (keys stay on the server)
 
 </td>
 </tr>
@@ -155,6 +161,7 @@ flowchart TB
         direction LR
         ST["Static pages"]
         UP["POST /api/lms/uploads<br/>type & size validation"]
+        AI["/api/ai/*<br/>SDC Learn AI proxy"]
         FS[("📁 backend/uploads")]
         UP --> FS
     end
@@ -162,6 +169,7 @@ flowchart TB
     subgraph Cloud["☁️ External services"]
         direction LR
         SB[("Supabase<br/>shared state row")]
+        LLM["OpenAI · Gemini · Azure"]
         ZM["🎥 Zoom"]
         VID["▶️ YouTube · Vimeo · Drive"]
     end
@@ -169,6 +177,8 @@ flowchart TB
     Users --> P
     P -. served by .-> ST
     PG -- uploads --> UP
+    PG -- ai-client.js --> AI
+    AI --> LLM
     CORE <-- "cloud-sync.js" --> SB
     PG -. join links .-> ZM
     PG -. embeds .-> VID
@@ -194,8 +204,9 @@ flowchart TB
 | ⚡ | **Browser-first data** — one JSON state in `localStorage` | Instant UI, works offline and from any static host |
 | ☁️ | **Optional Supabase mirror** | Shared data across devices without writing an API |
 | 🧱 | **No framework, no bundler** | Easy to host, audit and hand over; matches the original stack |
-| 📁 | **Server only for files** | Browsers can't store shared uploads; everything else stays client-side |
+| 📁 | **Server for files + AI** | Uploads and provider keys never live in the browser DB |
 | 🔐 | **One permission function (`can`)** | Menus, routes and buttons all ask the same question |
+| 🤖 | **Draft-only AI grading** | Staff must accept/edit AI feedback before it becomes a grade |
 
 ### Page structure
 
@@ -362,9 +373,10 @@ Full field reference: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md#data-model
 
 | Suite | Command | Covers |
 |---|---|---|
-| Logic | `npm test` | Permissions, course scoping, grading, restricted access, password hashing |
+| Logic | `npm test` | Permissions, course scoping, grading, AI helpers, gateway |
 | Syntax | `npm run check` | Every script parses |
-| UI workflows | browser console — see [RUN.md](RUN.md#tests) | **29 end-to-end workflows** across every module and role, driving real clicks and forms |
+| UI workflows | browser console — see [RUN.md](RUN.md#tests) | End-to-end workflows across modules and roles |
+| Manual (Phase 2) | [docs/testing/SDC-Learn-Manual-Test-Suite-Phase2.xlsx](docs/testing/SDC-Learn-Manual-Test-Suite-Phase2.xlsx) | **124** smoke + LMS + AI workflow cases |
 
 ---
 
@@ -380,10 +392,12 @@ Full field reference: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md#data-model
 
 | | Document | Contents |
 |---|---|---|
-| ⚙️ | [SETUP.md](SETUP.md) | Install, environment variables, Settings, Supabase, Neon, deploy to Render / Vercel, production checklist |
+| ⚙️ | [SETUP.md](SETUP.md) | Install, environment variables, Settings, Supabase, SDC Learn AI, Neon, deploy to Render / Vercel, production checklist |
 | ▶️ | [RUN.md](RUN.md) | Running, demo walkthroughs per role, tests, troubleshooting |
 | 🏗️ | [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) | Architecture, file map, data model, permission engine, routes, extending |
-| 📋 | [docs/BRD](docs/BRD_SDC_Online_Learning_Platform.md) | Business requirements |
+| 📋 | [docs/BRD](docs/BRD_SDC_Online_Learning_Platform.md) | Phase 1 business requirements |
+| 🤖 | [docs/BRD_Phase2_AI_Capabilities.md](docs/BRD_Phase2_AI_Capabilities.md) | Phase 2 Must — SDC Learn AI (tutor, quizzes, evaluator, integrations) |
+| 🧪 | [docs/testing/](docs/testing/) | Manual test suite workbook + generator |
 
 ---
 

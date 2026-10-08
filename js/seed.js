@@ -30,9 +30,9 @@ const SEED = (() => {
   const roles = [
     { id: 'admin', name: 'Coordinator', base: 'admin', courseScope: 'all', courseIds: [], system: true, description: 'Full access to every module. Always keeps all permissions.', permissions: {} },
     { id: 'teacher', name: 'Instructor', base: 'teacher', courseScope: 'assigned', courseIds: [], system: true, description: 'Teaches assigned courses: sessions, grading, attendance and results.',
-      permissions: P({ dashboard: ['view'], courses: ['view', 'edit'], learners: ['view'], submissions: ['view', 'edit'], attendance: ['view', 'edit'], results: ['view', 'edit'], announcements: ['view', 'create', 'edit', 'delete'], messages: ['view', 'create'], calendar: ['view'] }) },
+      permissions: P({ dashboard: ['view'], courses: ['view', 'edit'], learners: ['view'], submissions: ['view', 'edit'], attendance: ['view', 'edit'], results: ['view', 'edit'], announcements: ['view', 'create', 'edit', 'delete'], messages: ['view', 'create'], calendar: ['view'], ai: ['view', 'use'], quizzes: ['view', 'create', 'edit', 'delete', 'publish'] }) },
     { id: 'student', name: 'Learner', base: 'student', courseScope: 'enrolled', courseIds: [], system: true, description: 'Learns in enrolled courses and tracks their own progress.',
-      permissions: P({ learn: ['view'], attendance: ['view'], results: ['view'], certificates: ['view'], fees: ['view'], announcements: ['view'], messages: ['view', 'create'], calendar: ['view'] }) },
+      permissions: P({ learn: ['view'], attendance: ['view'], results: ['view'], certificates: ['view'], fees: ['view'], announcements: ['view'], messages: ['view', 'create'], calendar: ['view'], ai: ['view', 'use'], quizzes: ['view'] }) },
     { id: 'accounts', name: 'Accounts Officer', base: 'admin', courseScope: 'all', courseIds: [], system: false, description: 'Example custom role: manages fees and views learners and reports.',
       permissions: P({ dashboard: ['view'], fees: ['view', 'create', 'edit', 'delete'], learners: ['view'], enrollments: ['view'], reports: ['view'], messages: ['view', 'create'] }) }
   ];
@@ -250,6 +250,21 @@ const SEED = (() => {
     feedback: [
       { id: 'FB-1', learnerId: 'u-mariam', courseId: 'C-EXCEL', rating: 5, comment: 'The Power Query preview alone saved me hours at work. Very practical!', date: D(-2), publish: true }
     ],
+    questionBanks: [
+      { id: 'QB-EXCEL', courseId: 'C-EXCEL', title: 'Excel foundations bank', description: 'Formative items for Modules 1–2.' }
+    ],
+    questions: [
+      { id: 'QQ-1', bankId: 'QB-EXCEL', courseId: 'C-EXCEL', type: 'mcq_single', stem: 'Which Excel feature best converts a flat range into a structured, auto-expanding table?', options: [{ id: 'a', text: 'PivotTable', correct: false }, { id: 'b', text: 'Format as Table', correct: true }, { id: 'c', text: 'Flash Fill', correct: false }, { id: 'd', text: 'Data Validation', correct: false }], points: 1, difficulty: 'easy', tags: ['tables'] },
+      { id: 'QQ-2', bankId: 'QB-EXCEL', courseId: 'C-EXCEL', type: 'true_false', stem: 'XLOOKUP can return multiple columns in a single formula in Microsoft 365.', options: [{ id: 't', text: 'True', correct: true }, { id: 'f', text: 'False', correct: false }], points: 1, difficulty: 'medium', tags: ['lookups'] },
+      { id: 'QQ-3', bankId: 'QB-EXCEL', courseId: 'C-EXCEL', type: 'short', stem: 'Name one Power Query step you would use to split a “City, Country” column into two columns.', modelAnswer: 'Split Column by Delimiter (comma)', keywords: ['split', 'delimiter'], points: 2, difficulty: 'medium', tags: ['power-query'] }
+    ],
+    quizzes: [
+      { id: 'QZ-EX-1', courseId: 'C-EXCEL', sessionId: 'S-EX-2', title: 'Module 1 check-in', description: 'Short graded check on tables and lookups.', questionIds: ['QQ-1', 'QQ-2', 'QQ-3'], timeLimitSec: 0, attemptLimit: 2, shuffle: false, status: 'published', passPercent: 50 }
+    ],
+    quizAttempts: [],
+    practiceAttempts: [],
+    rubrics: [],
+    atRiskFlags: [],
     settings: {}
   };
 })();
