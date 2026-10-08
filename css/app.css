@@ -866,3 +866,15 @@ body, .sidebar, .topbar, .card, .stat, .course-card, .session-row, .input { tran
   .ai-compose { flex-direction: column; }
   .ai-provider-grid { grid-template-columns: 1fr; }
 }
+
+/* Quiz editor */
+.row-end { display: flex; justify-content: flex-end; margin-top: 8px; }
+.opt-row { display: flex; align-items: center; gap: 8px; }
+.opt-row .input { flex: 1; }
+.opt-row input[type=radio], .opt-row input[type=checkbox] { width: 16px; height: 16px; flex: none; accent-color: var(--primary); }
+/* AI drawer text and quiz answers: padded, one option per line */
+.ai-drawer-body > .help { margin: 0; padding: 12px 18px 0; }
+.quiz-q legend, .ai-drawer fieldset legend { padding: 0 6px; font-weight: 600; line-height: 1.45; }
+.quiz-q .check, .ai-drawer fieldset .check { display: flex; width: 100%; padding: 8px 10px; margin-top: 4px; border-radius: var(--r-sm); transition: background .12s; }
+.quiz-q .check:hover, .ai-drawer fieldset .check:hover { background: var(--surface-2); }
+.ai-drawer fieldset.card { margin: 0 0 10px; }

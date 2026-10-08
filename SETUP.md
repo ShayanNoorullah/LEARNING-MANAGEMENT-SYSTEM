@@ -81,6 +81,8 @@ The hosted deployment uses the Supabase project `idchielsujwfqhiwbsui` (shared w
 2. Set it as the environment variable **`SDC_STATE_SECRET`** on the server (Vercel → Project → Settings → Environment Variables, Production) and redeploy. `GET /api/sdc/status` then returns `{"gateway":true}`.
 3. Put the secret's SHA-256 in `supabase/gateway.sql` and run that file in the SQL Editor. It removes browser access to the table; only the server can reach it.
 
+The same file creates `sdc_learn_kv`, where the server keeps SDC Learn AI provider keys (AES-GCM encrypted) and the monthly AI usage counter, so every Vercel instance shares them.
+
 With the gateway on, passwords are checked on the server, each browser receives only its own password hash, learners can edit only their own profile, and roles/settings/accounts change only for users holding those permissions. Signing out clears the browser's cached copy. Without `SDC_STATE_SECRET` (e.g. plain local development) the app keeps using the direct mode above.
 
 ### 5b. SDC Learn AI (Phase 2)

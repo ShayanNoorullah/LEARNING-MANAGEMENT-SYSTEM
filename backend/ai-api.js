@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 
+const gw = require('./state-api').server;
 const router = express.Router();
 router.use(express.json({ limit: '2mb' }));
 
@@ -47,16 +48,18 @@ function dec(blob) {
     return JSON.parse(pt.toString('utf8'));
   } catch (e) { console.warn('AI secrets decrypt failed', e.message); return { profiles: {} }; }
 }
-function loadSecrets() {
-  try {
-    if (!fs.existsSync(SECRETS_FILE)) return { profiles: {} };
-    return dec(JSON.parse(fs.readFileSync(SECRETS_FILE, 'utf8')));
-  } catch (e) { return { profiles: {} }; }
+const readFile = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return null; } };
+const writeFile = (f, v) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(v)); };
+async function kvGet(key, file) {
+  if (gw.READY) return gw.rpc('sdc_kv_get', { p_key: key });
+  return readFile(file);
 }
-function saveSecrets(store) {
-  fs.mkdirSync(path.dirname(SECRETS_FILE), { recursive: true });
-  fs.writeFileSync(SECRETS_FILE, JSON.stringify(enc(store)));
+async function kvPut(key, file, value) {
+  if (gw.READY) return gw.rpc('sdc_kv_put', { p_key: key, p_value: value });
+  writeFile(file, value);
 }
+async function loadSecrets() { const blob = await kvGet('ai-secrets', SECRETS_FILE); return blob ? dec(blob) : { profiles: {} }; }
+async function saveSecrets(store) { await kvPut('ai-secrets', SECRETS_FILE, enc(store)); }
 function maskKey(k) {
   const s = String(k || '');
   if (s.length < 8) return s ? '••••' : '';
@@ -75,19 +78,18 @@ function resolveProfile(store, profileId, provider) {
 }
 
 /* -------------------------------- usage ---------------------------------- */
-function loadUsage() {
-  try { return JSON.parse(fs.readFileSync(USAGE_FILE, 'utf8')); } catch (e) { return { month: '', calls: 0, tokens: 0, byFeature: {} }; }
+async function loadUsage() {
+  const u = await kvGet('ai-usage', USAGE_FILE).catch(() => null);
+  return u || { month: '', calls: 0, tokens: 0, byFeature: {} };
 }
-function saveUsage(u) {
-  try { fs.mkdirSync(path.dirname(USAGE_FILE), { recursive: true }); fs.writeFileSync(USAGE_FILE, JSON.stringify(u)); } catch (e) {}
-}
-function trackUsage(feature, tokens) {
+// ponytail: read-modify-write, so two simultaneous calls can undercount by one; fine for a budget guard.
+async function trackUsage(feature, tokens) {
   const month = new Date().toISOString().slice(0, 7);
-  const u = loadUsage();
+  const u = await loadUsage();
   if (u.month !== month) { u.month = month; u.calls = 0; u.tokens = 0; u.byFeature = {}; }
   u.calls += 1; u.tokens += tokens || 0;
   u.byFeature[feature] = (u.byFeature[feature] || 0) + 1;
-  saveUsage(u);
+  await kvPut('ai-usage', USAGE_FILE, u).catch(e => console.warn('AI usage not saved', e.message));
   return u;
 }
 
@@ -121,6 +123,32 @@ function auth(req, res, next) {
     if (p.purpose === 'ai' && p.uid) { req.uid = p.uid; return next(); }
   } catch (e) {}
   return res.status(401).json({ error: 'Your AI session expired. Refresh and try again.' });
+}
+// ponytail: platform state cached 10 s per instance for permission/budget checks; role changes apply within that window.
+let stateCache = { at: 0, state: null };
+async function platform() {
+  if (!gw.READY) return null;
+  if (Date.now() - stateCache.at > 10000) stateCache = { at: Date.now(), state: (await gw.load()).state };
+  return stateCache.state;
+}
+const deny = (res, msg) => res.status(403).json({ error: msg });
+function allow(kind) {
+  return async (req, res, next) => {
+    try {
+      const st = await platform();
+      if (!st) return next(); // local development without the gateway: the browser enforces permissions
+      const me = st.users.find(u => u.id === req.uid);
+      if (!me || me.status !== 'Active') return res.status(401).json({ error: 'Your account is not active.' });
+      req.platform = st;
+      if (kind === 'configure' && !(gw.can(st, me, 'ai', ['configure']) || gw.can(st, me, 'settings', ['edit']))) return deny(res, 'Only administrators can change SDC Learn AI integrations.');
+      if (kind === 'use') {
+        const integ = st.settings?.integrations || {};
+        if (st.settings?.features?.ai === false || integ.aiEnabled === false) return deny(res, 'SDC Learn AI is turned off in Settings.');
+        if (!gw.can(st, me, 'ai', ['use', 'configure'])) return deny(res, 'You do not have permission to use SDC Learn AI.');
+      }
+      next();
+    } catch (e) { console.error('[ai] permission check', e); res.status(502).json({ error: 'Could not verify your permissions. Try again.' }); }
+  };
 }
 const wrap = fn => (req, res) => fn(req, res).catch(e => {
   console.error('[ai]', e);
@@ -193,8 +221,8 @@ function pickRoute(body) {
 }
 
 /* -------------------------------- routes --------------------------------- */
-router.get('/api/ai/status', (req, res) => {
-  const store = loadSecrets();
+router.get('/api/ai/status', wrap(async (req, res) => {
+  const store = await loadSecrets();
   const profiles = Object.entries(store.profiles || {}).map(([id, p]) => ({
     id, name: p.name || id, provider: p.provider, model: p.model || p.deployment || '',
     endpoint: p.endpoint || '', deployment: p.deployment || '', apiVersion: p.apiVersion || '',
@@ -206,8 +234,8 @@ router.get('/api/ai/status', (req, res) => {
     gemini: !!process.env.GEMINI_API_KEY,
     azure_openai: !!process.env.AZURE_OPENAI_API_KEY
   };
-  res.json({ ok: true, product: 'SDC Learn AI', profiles, env, usage: loadUsage(), localAuth: LOCAL_OPEN });
-});
+  res.json({ ok: true, product: 'SDC Learn AI', profiles, env, usage: await loadUsage(), localAuth: LOCAL_OPEN });
+}));
 
 router.post('/api/ai/auth', wrap(async (req, res) => {
   if (!LOCAL_OPEN && GATEWAY_SIGN) return res.status(403).json({ error: 'Use gateway sign-in for AI.' });
@@ -217,15 +245,15 @@ router.post('/api/ai/auth', wrap(async (req, res) => {
   res.json({ token });
 }));
 
-router.post('/api/ai/configure', auth, wrap(async (req, res) => {
+router.post('/api/ai/configure', auth, allow('configure'), wrap(async (req, res) => {
   const { profileId, name, provider, apiKey, model, endpoint, deployment, apiVersion, baseUrl, enabled, remove } = req.body || {};
   if (!PROVIDERS.includes(provider) && !remove) return res.status(400).json({ error: 'Invalid provider.' });
-  const store = loadSecrets();
+  const store = await loadSecrets();
   store.profiles = store.profiles || {};
   const id = profileId || `prof-${provider}-${Date.now().toString(36)}`;
   if (remove) {
     delete store.profiles[id];
-    saveSecrets(store);
+    await saveSecrets(store);
     return res.json({ ok: true, removed: id });
   }
   const prev = store.profiles[id] || {};
@@ -242,14 +270,14 @@ router.post('/api/ai/configure', auth, wrap(async (req, res) => {
     lastValidatedAt: prev.lastValidatedAt || null
   };
   if (!store.profiles[id].apiKey) return res.status(400).json({ error: 'API key is required.' });
-  saveSecrets(store);
+  await saveSecrets(store);
   res.json({ ok: true, profile: { id, name: store.profiles[id].name, provider, maskedKey: maskKey(store.profiles[id].apiKey) } });
 }));
 
-router.post('/api/ai/test', auth, wrap(async (req, res) => {
+router.post('/api/ai/test', auth, allow('configure'), wrap(async (req, res) => {
   rateLimit(req.uid, 20);
   const { provider, profileId } = pickRoute(req.body || {});
-  const store = loadSecrets();
+  const store = await loadSecrets();
   let profile = resolveProfile(store, profileId, provider);
   // Allow testing with a key pasted in the form before save
   if (req.body?.apiKey && !String(req.body.apiKey).includes('…')) {
@@ -262,24 +290,27 @@ router.post('/api/ai/test', auth, wrap(async (req, res) => {
   ], { maxTokens: 16, temperature: 0 });
   if (profileId && store.profiles[profileId]) {
     store.profiles[profileId].lastValidatedAt = new Date().toISOString();
-    saveSecrets(store);
+    await saveSecrets(store);
   }
-  trackUsage('test', out.tokens);
+  await trackUsage('test', out.tokens);
   res.json({ ok: true, reply: out.text.trim(), model: out.model, provider: out.provider, tokens: out.tokens });
 }));
 
-router.post('/api/ai/complete', auth, wrap(async (req, res) => {
+router.post('/api/ai/complete', auth, allow('use'), wrap(async (req, res) => {
   rateLimit(req.uid);
   const feature = CAPABILITIES.includes(req.body?.feature) ? req.body.feature : 'complete';
-  const budget = req.body?.budget || {};
-  const usage = loadUsage();
+  const budget = req.platform ? (req.platform.settings?.integrations?.budget || {}) : (req.body?.budget || {});
+  const usage = await loadUsage();
   if (budget.hardStop && budget.maxCalls && usage.month === new Date().toISOString().slice(0, 7) && usage.calls >= Number(budget.maxCalls)) {
     return res.status(429).json({ error: 'Monthly AI budget reached. Ask your coordinator to raise the limit.' });
   }
   const route = pickRoute(req.body || {});
-  const store = loadSecrets();
-  const profile = resolveProfile(store, route.profileId, route.provider);
-  if (!profile?.apiKey) return res.status(400).json({ error: `No credentials for ${route.provider}. Configure Integrations.` });
+  const store = await loadSecrets();
+  // FR-INT-6: the capability's provider first, then the configured fallback/primary, then any provider with a key.
+  const integ = req.platform?.settings?.integrations || req.body || {};
+  const order = [...new Set([route.provider, integ.fallbackProvider, integ.primaryProvider, ...PROVIDERS].filter(p => PROVIDERS.includes(p)))];
+  const candidates = order.map(p => ({ provider: p, profile: resolveProfile(store, p === route.provider ? route.profileId : null, p) })).filter(c => c.profile?.apiKey);
+  if (!candidates.length) return res.status(400).json({ error: 'SDC Learn AI is not configured yet. Ask your coordinator to add a provider in Settings → Integrations.' });
 
   const strip = req.body?.stripPii !== false;
   const names = req.body?.scrubNames || [];
@@ -292,8 +323,13 @@ router.post('/api/ai/complete', auth, wrap(async (req, res) => {
   }
   if (strip) messages = messages.map(m => ({ ...m, content: scrubPii(m.content, names) }));
 
-  const out = await complete(route.provider, profile, messages, { model: route.model, temperature: route.temperature, maxTokens: route.maxTokens });
-  trackUsage(feature, out.tokens);
+  let out, lastErr;
+  for (const c of candidates) {
+    try { out = await complete(c.provider, c.profile, messages, { model: c.provider === route.provider ? route.model : undefined, temperature: route.temperature, maxTokens: route.maxTokens }); break; }
+    catch (e) { lastErr = e; console.warn(`[ai] ${c.provider} failed, trying the next provider:`, e.message); }
+  }
+  if (!out) throw lastErr;
+  await trackUsage(feature, out.tokens);
   res.json({
     text: out.text,
     model: out.model,

@@ -415,7 +415,7 @@ App.route('/assignments', { perm: 'learn', base: 'student', render(ctx) {
       { key: 'title', label: t('assignment'), primary: true, sortValue: r => r.a.title, render: r => `<b>${esc(r.a.title)}</b><small class="muted block">${esc(r.c.title)}</small>` },
       { key: 'due', label: 'Due', sortValue: r => r.a.dueAt || '', render: r => `${fmtDateTime(r.a.dueAt)}<small class="muted block">${esc(relTime(r.a.dueAt))}</small>` },
       { key: 'status', label: 'Status', sortValue: r => r.status, render: r => badge(r.status) },
-      { key: 'grade', label: 'Grade', sortValue: r => Number(r.submission?.grade ?? -1), render: r => r.submission?.grade != null ? `<b>${r.submission.grade}</b>/${r.a.maxMarks}${r.submission.feedback ? `<small class="muted block clamp-2">${esc(r.submission.feedback)}</small>` : ''}` : `<span class="muted">—</span>` }
+      { key: 'grade', label: 'Grade', sortValue: r => Number(r.submission?.grade ?? -1), render: r => r.submission?.grade != null ? `<b>${r.submission.grade}</b>/${r.a.maxMarks}${r.submission.aiAssisted ? ` ${badge('AI-assisted review', 'accent')}` : ''}${r.submission.feedback ? `<small class="muted block clamp-2">${esc(r.submission.feedback)}</small>` : ''}` : `<span class="muted">—</span>` }
     ],
     actions: r => `<a class="btn btn-ghost btn-sm" href="#/course/${r.c.id}/submit?assignment=${r.a.id}">${r.submission ? 'View' : 'Submit'}</a>`,
     emptyTitle: `No ${t('assignments', true)} yet`, emptyIcon: 'clipboard'

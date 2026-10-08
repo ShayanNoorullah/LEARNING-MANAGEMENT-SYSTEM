@@ -97,6 +97,12 @@ node tests/suite.run.js http://localhost:3000
 
 It blocks all Supabase traffic, so it never touches live data.
 
+Phase 2 (SDC Learn AI and graded quizzes) starts its own in-process server in gateway mode with a mock Supabase and a mock AI provider, so no AI key is needed:
+
+```bash
+node tests/phase2.run.js
+```
+
 ## Troubleshooting
 
 | Problem | Fix |

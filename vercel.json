@@ -2,14 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "",
   "outputDirectory": ".",
+  "regions": ["bom1"],
   "functions": {
     "api/index.js": {
-      "includeFiles": "backend/data/database.json",
+      "includeFiles": "{backend/data/database.json,js/seed.js,js/cloud-config.js}",
       "maxDuration": 60
     }
   },
   "routes": [
     { "src": "/backend/.*", "status": 404 },
+    { "src": "/assets/(.*)", "headers": { "cache-control": "public, max-age=604800, stale-while-revalidate=86400" }, "continue": true },
     { "src": "/api/(.*)", "dest": "/api/index.js" },
     { "src": "/uploads/(.*)", "dest": "/api/index.js" }
   ]

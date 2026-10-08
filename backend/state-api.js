@@ -28,9 +28,18 @@ function seedState() {
   SEED.users.forEach(u => { if (u.password) { u.salt = crypto.randomBytes(8).toString('hex'); u.passwordHash = hashPassword(u.password, u.salt); delete u.password; } });
   return SEED;
 }
+// Same one-time upgrade as normalizeState in js/core.js, applied here because only the server may change roles.
+let seedRoles;
+function migrate(state) {
+  if ((state.schema || 1) >= 2) return state;
+  seedRoles ||= vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'seed.js'), 'utf8') + ';SEED.roles', {});
+  (state.roles || []).forEach(r => { const s = seedRoles.find(x => x.id === r.id); if (!s || !r.permissions) return; ['ai', 'quizzes'].forEach(m => { if (!r.permissions[m] && s.permissions?.[m]) r.permissions[m] = [...s.permissions[m]]; }); });
+  state.schema = 2;
+  return state;
+}
 async function load() {
   const row = await rpc('sdc_state_get', {});
-  if (row?.state?.users?.length) return { state: row.state, updatedAt: row.updated_at };
+  if (row?.state?.users?.length) return { state: migrate(row.state), updatedAt: row.updated_at };
   const state = seedState();
   return { state, updatedAt: await rpc('sdc_state_put', { p_state: state }) };
 }
@@ -126,4 +135,6 @@ router.get('/api/sdc/verify', wrap(async (req, res) => {
 router.get('/api/sdc/public', wrap(async (req, res) => { const { state } = await load(); res.json({ settings: state.settings || {} }); }));
 
 module.exports = router;
-module.exports._test = { merge, forClient, hashPassword, verify };
+module.exports._test = { merge, forClient, hashPassword, verify, migrate };
+// Shared with ai-api.js: the same secret-guarded storage and permission rules.
+module.exports.server = { READY, load, can, rpc };

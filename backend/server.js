@@ -8,7 +8,9 @@ const jwt=require('jsonwebtoken');
 const bcrypt=require('bcryptjs');
 const multer=require('multer');
 let neonSql=null; try { if(process.env.DATABASE_URL){ const {neon}=require('@neondatabase/serverless'); neonSql=neon(process.env.DATABASE_URL); } } catch(e){ console.warn('Neon driver unavailable; continuing with local JSON storage.'); }
-const {generateRegistrationOptions,verifyRegistrationResponse,generateAuthenticationOptions,verifyAuthenticationResponse}=require('@simplewebauthn/server');
+// Passkey library (~190 ms to load) is required on first passkey request, not on every cold start.
+const wa=n=>(...a)=>require('@simplewebauthn/server')[n](...a);
+const generateRegistrationOptions=wa('generateRegistrationOptions'),verifyRegistrationResponse=wa('verifyRegistrationResponse'),generateAuthenticationOptions=wa('generateAuthenticationOptions'),verifyAuthenticationResponse=wa('verifyAuthenticationResponse');
 const app=express();
 const PORT=Number(process.env.PORT||3000);
 const SECRET=process.env.JWT_SECRET||'sdc-learn-development-secret-change-in-production';

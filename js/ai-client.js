@@ -40,6 +40,7 @@
     return {
       feature, provider, profileId, model: cap.model || undefined,
       temperature: cap.temperature, stripPii: integ.stripPiiDefault !== false,
+      fallbackProvider: integ.fallbackProvider, primaryProvider: integ.primaryProvider,
       budget: integ.budget || {}
     };
   }

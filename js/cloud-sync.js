@@ -25,7 +25,7 @@
     } catch (e) { return 'direct'; }
   })();
   let client = null;
-  const direct = () => client || (c.url && c.anonKey && !c.url.includes('YOUR_') && window.supabase?.createClient ? (client = window.supabase.createClient(c.url, c.anonKey, { auth: { persistSession: false } })) : null);
+  const direct = async () => client || (c.url && c.anonKey && !c.url.includes('YOUR_') ? (client = (await loadSupabase()).createClient(c.url, c.anonKey, { auth: { persistSession: false } })) : null);
 
   async function api(path, opts = {}) {
     const t = token(), r = await withTimeout(fetch('/api/sdc' + path, { ...opts, headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: 'Bearer ' + t } : {}) } }));
@@ -43,7 +43,7 @@
   async function remote() {
     const m = await mode;
     if (m === 'gateway') { if (!token()) return null; const j = await api('/state'); return { state: j.state, at: Date.parse(j.updatedAt) || 0 }; }
-    const cl = m === 'direct' && direct(); if (!cl) return null;
+    const cl = m === 'direct' && await direct(); if (!cl) return null;
     const res = await withTimeout(cl.from(table).select('state,updated_at').eq('id', id).maybeSingle());
     if (res.error) throw res.error;
     return { state: res.data?.state, at: Date.parse(res.data?.updated_at || 0) || 0 };
@@ -51,13 +51,15 @@
   async function push(state) {
     const m = await mode;
     if (m === 'gateway') { if (!token()) return; await api('/state', { method: 'PUT', body: JSON.stringify({ state }) }); }
-    else { const cl = m === 'direct' && direct(); if (!cl) return; const res = await withTimeout(cl.from(table).upsert({ id, state, updated_at: new Date().toISOString() }, { onConflict: 'id' })); if (res.error) throw res.error; }
+    else { const cl = m === 'direct' && await direct(); if (!cl) return; const res = await withTimeout(cl.from(table).upsert({ id, state, updated_at: new Date().toISOString() }, { onConflict: 'id' })); if (res.error) throw res.error; }
     localStorage.setItem(STAMP, String(Date.now()));
   }
   async function pull() {
     try {
       // A browser signed in before the gateway existed has no token: sign in again so changes reach the cloud.
       if (await mode === 'gateway' && !token() && typeof App !== 'undefined' && currentUser()) return logout();
+      // Sign-in already returned the latest data; skip the immediate re-download on the first page load.
+      try { if (Date.now() - Number(sessionStorage.getItem('sdcFreshAt') || 0) < 15000) { sessionStorage.removeItem('sdcFreshAt'); window.SDC_CLOUD_STATUS = 'Connected'; return; } } catch (e) {}
       const r = await remote();
       if (!r) { window.SDC_CLOUD_STATUS = off ? window.SDC_CLOUD_STATUS : 'Local only'; return; }
       if (localStorage.getItem(PENDING)) await flush();
@@ -76,7 +78,7 @@
     })();
     try { return await running; } finally { running = null; }
   }
-  async function startSession(j) { localStorage.setItem(TOKEN, j.token); adopt(j.state, j.updatedAt); return j.userId; }
+  async function startSession(j) { localStorage.setItem(TOKEN, j.token); adopt(j.state, j.updatedAt); try { sessionStorage.setItem('sdcFreshAt', String(Date.now())); } catch (e) {} return j.userId; }
   window.SDCCloud = {
     syncNow() { localStorage.setItem(PENDING, `${Date.now()}-${Math.random().toString(36).slice(2)}`); clearTimeout(timer); timer = setTimeout(flush, 400); },
     flushNow: flush, pullNow: pull, ready: null,

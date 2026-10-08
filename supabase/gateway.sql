@@ -46,3 +46,34 @@ drop policy if exists "sdc_learn read" on public.sdc_learn_state;
 drop policy if exists "sdc_learn insert" on public.sdc_learn_state;
 drop policy if exists "sdc_learn update" on public.sdc_learn_state;
 revoke all on public.sdc_learn_state from anon, authenticated;
+
+-- SDC Learn AI (Phase 2): server-only key/value rows for encrypted provider keys ('ai-secrets')
+-- and the monthly usage counter ('ai-usage'), shared by every serverless instance.
+create table if not exists public.sdc_learn_kv (key text primary key, value jsonb not null, updated_at timestamptz not null default now());
+alter table public.sdc_learn_kv enable row level security;
+revoke all on public.sdc_learn_kv from anon, authenticated;
+
+create or replace function public.sdc_kv_get(p_secret text, p_key text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from sdc_learn_secret where secret_hash = encode(sha256(convert_to(p_secret, 'UTF8')), 'hex')) then
+    raise exception 'denied' using errcode = '42501';
+  end if;
+  return (select value from sdc_learn_kv where key = p_key);
+end $$;
+
+create or replace function public.sdc_kv_put(p_secret text, p_key text, p_value jsonb) returns boolean
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from sdc_learn_secret where secret_hash = encode(sha256(convert_to(p_secret, 'UTF8')), 'hex')) then
+    raise exception 'denied' using errcode = '42501';
+  end if;
+  insert into sdc_learn_kv (key, value, updated_at) values (p_key, p_value, now())
+  on conflict (key) do update set value = excluded.value, updated_at = excluded.updated_at;
+  return true;
+end $;
+
+revoke all on function public.sdc_kv_get(text, text) from public;
+revoke all on function public.sdc_kv_put(text, text, jsonb) from public;
+grant execute on function public.sdc_kv_get(text, text) to anon, authenticated;
+grant execute on function public.sdc_kv_put(text, text, jsonb) to anon, authenticated;

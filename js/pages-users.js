@@ -68,7 +68,8 @@ App.route('/instructors', { perm: 'staff', render: ctx => userPage(ctx, 'teacher
 App.route('/users', { perm: 'staff', render: ctx => userPage(ctx, null) });
 
 /* ------------------------------------------------------- Roles & permissions */
-const ACTIONS = ['view', 'create', 'edit', 'delete', 'publish'];
+// Columns come from the permission list, so modules with their own actions (ai: use / configure) show up too.
+const ACTIONS = [...new Set(PERMISSIONS.flatMap(([, , acts]) => acts))];
 const SCOPES = [
   { value: 'all', label: 'All courses' },
   { value: 'assigned', label: 'Courses they are assigned to teach' },

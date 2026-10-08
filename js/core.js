@@ -98,6 +98,11 @@ function normalizeState(input) {
   if (src.settings.brand.logoUrl === 'assets/brand/sdc-logo.svg') src.settings.brand.logoUrl = DEFAULT_SETTINGS.brand.logoUrl; // placeholder replaced by official logo
   // Seeded demo users carry a plaintext password once; store only salted hashes.
   src.users.forEach(u => { if (u.password) { u.salt = u.salt || randomToken(8); u.passwordHash = hashPassword(u.password, u.salt); delete u.password; } });
+  // Schema 2 (Phase 2): give built-in roles the new ai/quizzes defaults once; later admin edits are left alone.
+  if ((src.schema || 1) < 2) {
+    src.roles.forEach(r => { const s = (seed.roles || []).find(x => x.id === r.id); if (!s || !r.permissions) return; ['ai', 'quizzes'].forEach(m => { if (!r.permissions[m] && s.permissions?.[m]) r.permissions[m] = [...s.permissions[m]]; }); });
+    src.schema = 2;
+  }
   return src;
 }
 function db() {
@@ -291,6 +296,15 @@ function login(email, password, remember) {
   if (remember) localStorage.setItem('sdcRemember', u.id); else localStorage.removeItem('sdcRemember');
   updateRecord('users', u.id, { lastLoginAt: new Date().toISOString() });
   return { ok: true, user: u };
+}
+/* supabase-js (~210 KB) is only needed for direct cloud mode and Google sign-in, so it loads on first use. */
+let _supabaseLib;
+function loadSupabase() {
+  return _supabaseLib ||= window.supabase?.createClient ? Promise.resolve(window.supabase) : new Promise((ok, fail) => {
+    const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+    s.onload = () => ok(window.supabase); s.onerror = () => { _supabaseLib = null; fail(new Error('Could not load the Supabase library.')); };
+    document.head.appendChild(s);
+  });
 }
 async function logout() { try { await window.SDCCloud?.flushNow?.(); } catch (e) {} window.SDCCloud?.signOut?.(); sessionStorage.removeItem('sdcSession'); localStorage.removeItem('sdcRemember'); location.href = 'login.html'; }
 

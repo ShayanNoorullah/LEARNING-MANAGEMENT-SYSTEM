@@ -25,4 +25,9 @@ const adminView = t.forClient(prev, 'A');
 out = t.merge(prev, { ...adminView, users: adminView.users.map(u => u.id === 'T' ? { ...u, passwordHash: 'new', salt: 'n' } : u) }, prev.users[0]);
 assert.equal(out.users.find(u => u.id === 'L').passwordHash, 'hl', 'missing hash = unchanged');
 assert.equal(out.users.find(u => u.id === 'T').passwordHash, 'new', 'account managers can reset passwords');
+// Phase 2 upgrade: built-in roles gain ai/quizzes once; existing choices and later edits are kept.
+const old = { roles: [{ id: 'student', permissions: { learn: ['view'] } }, { id: 'teacher', permissions: { ai: ['view'] } }] };
+t.migrate(old);
+assert.deepEqual(old.roles[0].permissions.ai, ['view', 'use']); assert.deepEqual(old.roles[1].permissions.ai, ['view'], 'existing ai permissions kept');
+delete old.roles[0].permissions.ai; t.migrate(old); assert.equal(old.roles[0].permissions.ai, undefined, 'upgrade runs only once');
 console.log('gateway.test.js: all checks passed');

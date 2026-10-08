@@ -52,21 +52,25 @@
      Sign-in names a role for automatic registration. */
   async function setupGoogle() {
     const c = window.SDC_CLOUD_CONFIG || {}, btn = $('#googleBtn');
-    if (!settings().auth.googleEnabled || !c.url || !c.anonKey || !window.supabase?.createClient) return;
+    if (!settings().auth.googleEnabled || !c.url || !c.anonKey) return;
     const q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.slice(1));
     const oauthError = q.get('error_description') || h.get('error_description');
     if (oauthError) { history.replaceState(null, '', location.pathname); showError(`Google sign-in failed: ${oauthError}`); }
-    const client = window.supabase.createClient(c.url, c.anonKey, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, storageKey: 'sdc-google-auth' } });
+    // The Supabase library is only fetched when returning from Google or when the button is pressed.
+    let client;
+    const getClient = async () => client ||= (await loadSupabase()).createClient(c.url, c.anonKey, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, storageKey: 'sdc-google-auth' } });
     const returning = q.has('code');
-    if (returning) { btn.hidden = false; btn.disabled = true; btn.querySelector('span').textContent = 'Signing you in…'; }
-    const { data } = await client.auth.getSession();
-    if (data.session?.user?.email) return finishGoogle(client, data.session.user, data.session.access_token);
+    if (returning) {
+      btn.hidden = false; btn.disabled = true; btn.querySelector('span').textContent = 'Signing you in…';
+      const { data } = await (await getClient()).auth.getSession();
+      if (data.session?.user?.email) return finishGoogle(client, data.session.user, data.session.access_token);
+    }
     if (returning) { history.replaceState(null, '', location.pathname); btn.disabled = false; btn.querySelector('span').textContent = 'Continue with Google'; }
     try { const r = await fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.anonKey } }); if (!(await r.json()).external?.google) { btn.hidden = true; return; } } catch (e) { btn.hidden = true; return; }
     btn.hidden = false; $('#googleOr').hidden = false;
     btn.onclick = async () => {
       btn.disabled = true; btn.querySelector('span').textContent = 'Redirecting to Google…';
-      const { error } = await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } } });
+      const { error } = await (await getClient()).auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } } });
       if (error) { showError(error.message); btn.disabled = false; btn.querySelector('span').textContent = 'Continue with Google'; }
     };
   }

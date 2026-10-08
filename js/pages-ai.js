@@ -177,7 +177,7 @@ function renderQuizAttempt(ctx, course, quiz) {
         });
         const parsed = JSON.parse(out.text.replace(/```json|```/g, '').trim());
         aiReviews[q.id] = { points: Math.min(Number(q.points) || 1, Math.max(0, Number(parsed.points) || 0)), rationale: parsed.rationale || '', ai: true };
-      } catch (err) { aiReviews[q.id] = { points: 0, rationale: 'Pending instructor review', ai: false }; }
+      } catch (err) { aiReviews[q.id] = { points: null, rationale: 'Pending instructor review', ai: false }; }
     }
     const graded = Domain.gradeQuizAttempt(quiz, answers, aiReviews);
     addRecord('quizAttempts', {
@@ -224,12 +224,13 @@ function builderQuizzes(pane, course, ctx) {
     columns: [
       { key: 'title', label: 'Title', primary: true, render: q => `<b>${esc(q.title)}</b><small class="muted block">${Domain.quizQuestions(q).length} questions</small>` },
       { key: 'status', label: 'Status', render: q => badge(q.status) },
-      { key: 'attempts', label: 'Attempts', render: q => String(db().quizAttempts.filter(a => a.quizId === q.id).length) }
+      { key: 'attempts', label: 'Attempts', render: q => { const all = db().quizAttempts.filter(a => a.quizId === q.id), pending = all.filter(a => a.pendingShort).length; return all.length ? `<button class="btn btn-ghost btn-sm" data-att="${q.id}">${all.length} · Review${pending ? ` ${badge(`${pending} pending`, 'warning')}` : ''}</button>` : '0'; } }
     ],
     actions: q => `<button class="btn btn-ghost btn-sm" data-edit="${q.id}">Edit</button>${q.status !== 'published' ? `<button class="btn btn-primary btn-sm" data-pub="${q.id}">Publish</button>` : `<button class="btn btn-ghost btn-sm" data-un="${q.id}">Unpublish</button>`}<button class="btn btn-ghost btn-sm danger" data-del="${q.id}">${icon('trash', 14)}</button>`,
     emptyTitle: `No ${t('quizzes', true)}`, emptyIcon: 'clipboard',
     onDraw: body => {
       body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => quizEditorModal(course, findRecord('quizzes', b.dataset.edit), () => ctx.refresh()));
+      body.querySelectorAll('[data-att]').forEach(b => b.onclick = () => quizAttemptsModal(findRecord('quizzes', b.dataset.att), () => ctx.refresh()));
       body.querySelectorAll('[data-pub]').forEach(b => b.onclick = () => { updateRecord('quizzes', b.dataset.pub, { status: 'published' }); toast('Published.'); ctx.refresh(); });
       body.querySelectorAll('[data-un]').forEach(b => b.onclick = () => { updateRecord('quizzes', b.dataset.un, { status: 'draft' }); toast('Unpublished.'); ctx.refresh(); });
       body.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (await confirmDialog('Delete this quiz?', { danger: true })) { deleteRecord('quizzes', b.dataset.del); ctx.refresh(); } });
@@ -237,6 +238,37 @@ function builderQuizzes(pane, course, ctx) {
   });
   pane.querySelector('[data-new]')?.addEventListener('click', () => quizEditorModal(course, null, () => ctx.refresh()));
   pane.querySelector('[data-gen]')?.addEventListener('click', () => aiGenerateQuizModal(course, () => ctx.refresh()));
+}
+
+/* CHK: the instructor sees each short answer with the AI score and rationale, and the score they set is final. */
+function quizAttemptsModal(quiz, done) {
+  const shorts = Domain.quizQuestions(quiz).filter(q => q.type === 'short');
+  const attempts = db().quizAttempts.filter(a => a.quizId === quiz.id).sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)));
+  const m = openModal({
+    title: `${quiz.title} — attempts`, size: 'lg',
+    body: attempts.map(a => `<div class="card tight mb" data-attempt="${a.id}"><div class="row-between"><b>${esc(userName(a.learnerId))}</b><span>${badge(`${a.percent}%`, a.pendingShort ? 'warning' : 'success')} <small class="muted">${esc(fmtDateTime(a.submittedAt))}</small></span></div>
+      ${shorts.map(q => { const r = a.aiReviews?.[q.id] || {}; return `<div class="field mt-sm"><span class="label">${esc(q.stem)} <small class="muted">(max ${q.points || 1})</small></span>
+        <p class="small">${esc(a.answers?.[q.id] || '—')}</p>
+        ${r.rationale ? `<p class="small muted">${r.ai ? `${badge('SDC Learn AI', 'accent')} ` : r.by ? 'Reviewed by instructor · ' : ''}${esc(r.rationale)}</p>` : ''}
+        <label class="row gap-sm small">Points <input class="input input-sm w-80" type="number" min="0" max="${q.points || 1}" step="0.5" data-q="${q.id}" value="${r.points ?? ''}" placeholder="Pending"></label></div>`; }).join('') || '<p class="small muted">No short-answer questions — objective items are scored automatically.</p>'}</div>`).join(''),
+    footer: `<button class="btn btn-ghost" data-modal-close>Close</button>${shorts.length ? '<button class="btn btn-primary" data-save>Save reviews</button>' : ''}`
+  });
+  m.querySelector('[data-save]')?.addEventListener('click', () => {
+    let changed = 0;
+    m.querySelectorAll('[data-attempt]').forEach(card => {
+      const a = findRecord('quizAttempts', card.dataset.attempt), reviews = { ...(a.aiReviews || {}) };
+      card.querySelectorAll('[data-q]').forEach(inp => {
+        if (inp.value === '') return;
+        const q = shorts.find(x => x.id === inp.dataset.q), pts = Math.min(Number(q.points) || 1, Math.max(0, Number(inp.value)));
+        if (reviews[q.id]?.points === pts && !reviews[q.id]?.ai) return;
+        reviews[q.id] = { points: pts, rationale: reviews[q.id]?.ai ? `AI suggested ${reviews[q.id].points}; set by instructor.` : 'Set by instructor.', ai: false, by: App.user.id, at: new Date().toISOString() };
+        changed++;
+      });
+      const g = Domain.gradeQuizAttempt(quiz, a.answers, reviews);
+      updateRecord('quizAttempts', a.id, { aiReviews: reviews, score: g.score, maxScore: g.maxScore, percent: g.percent, detail: g.detail, pendingShort: g.pending });
+    });
+    m.close(); toast(changed ? `${changed} score${changed === 1 ? '' : 's'} updated.` : 'No changes.'); done?.();
+  });
 }
 
 function quizEditorModal(course, quiz, done) {
@@ -256,12 +288,31 @@ function quizEditorModal(course, quiz, done) {
     footer: `<button class="btn btn-ghost" data-modal-close>Cancel</button><button class="btn btn-primary" data-save>Save</button>`
   });
   const qsBox = m.querySelector('[data-qs]');
+  qsBox.addEventListener('change', e => {
+    const sel = e.target.closest('[data-type]'); if (!sel) return;
+    const row = sel.closest('[data-qrow]');
+    const keep = sel.value === 'true_false' || row.querySelector('[data-model]') ? [] : [...row.querySelectorAll('[data-opt]')].map(o => ({ id: o.dataset.oid, text: o.querySelector('input[type=text]').value, correct: o.querySelector('input[type=radio],input[type=checkbox]').checked }));
+    row.querySelector('[data-opts]').innerHTML = questionOptsHTML({ id: row.dataset.qrow, type: sel.value, options: keep });
+  });
+  qsBox.addEventListener('click', e => {
+    const row = e.target.closest('[data-qrow]'); if (!row) return;
+    if (e.target.closest('[data-del-q]')) { row.remove(); return; }
+    if (e.target.closest('[data-del-opt]')) { if (row.querySelectorAll('[data-opt]').length > 2) e.target.closest('[data-opt]').remove(); else toast('A question needs at least two options.', 'warning'); return; }
+    if (e.target.closest('[data-add-opt]')) {
+      const type = row.querySelector('[data-type]').value, ids = [...row.querySelectorAll('[data-opt]')].map(o => o.dataset.oid);
+      const id = 'abcdefghij'.split('').find(c => !ids.includes(c)) || uid('o');
+      e.target.closest('[data-add-opt]').insertAdjacentHTML('beforebegin', optionRow({ id: row.dataset.qrow, type }, { id, text: '', correct: false }));
+    }
+  });
   m.querySelector('[data-add-q]').onclick = () => {
+    qsBox.querySelector(':scope > p')?.remove();
     qsBox.insertAdjacentHTML('beforeend', questionEditRow({ id: uid('QQ'), type: 'mcq_single', stem: '', points: 1, options: [{ id: 'a', text: '', correct: true }, { id: 'b', text: '', correct: false }] }));
   };
   m.querySelector('[data-save]').onclick = () => {
     const r = readForm(m.querySelector('[data-f]'), fields);
     if (!r.title) return toast('Title required.', 'error');
+    const unanswered = [...qsBox.querySelectorAll('[data-qrow]')].find(row => row.querySelector('[data-stem]').value.trim() && row.querySelector('[data-type]').value !== 'short' && !row.querySelector('[data-opt] input:is([type=radio],[type=checkbox]):checked'));
+    if (unanswered) return toast(`Mark the correct answer for: ${unanswered.querySelector('[data-stem]').value.trim()}`, 'error');
     const questionIds = [];
     qsBox.querySelectorAll('[data-qrow]').forEach(row => {
       const id = row.dataset.qrow;
@@ -289,14 +340,26 @@ function quizEditorModal(course, quiz, done) {
   };
 }
 
+function optionRow(q, o) {
+  return `<div class="opt-row" data-opt data-oid="${o.id}"><input type="${q.type === 'mcq_multi' ? 'checkbox' : 'radio'}" name="corr-${q.id}" ${o.correct ? 'checked' : ''} aria-label="Correct answer"><input class="input" type="text" value="${esc(o.text)}" placeholder="Option" ${q.type === 'true_false' ? 'readonly' : ''}>${q.type === 'true_false' ? '' : `<button type="button" class="icon-btn icon-btn-sm" data-del-opt aria-label="Remove option">${icon('x', 14)}</button>`}</div>`;
+}
+// The answer area depends on the type: model answer + keywords, fixed True/False, or editable options.
+function questionOptsHTML(q) {
+  if (q.type === 'short') return `<label class="label">Model answer</label><input class="input" data-model value="${esc(q.modelAnswer || '')}"><label class="label mt-sm">Keywords (comma separated)</label><input class="input" data-kw value="${esc((q.keywords || []).join(', '))}">`;
+  if (q.type === 'true_false') {
+    const correct = (q.options || []).find(o => o.correct)?.id === 'f' ? 'f' : 't';
+    return `<span class="label">Correct answer</span>${[{ id: 't', text: 'True' }, { id: 'f', text: 'False' }].map(o => optionRow(q, { ...o, correct: o.id === correct })).join('')}`;
+  }
+  const opts = (q.options || []).length ? q.options : [{ id: 'a', text: '', correct: true }, { id: 'b', text: '', correct: false }];
+  return `<span class="label">Options — tick the correct ${q.type === 'mcq_multi' ? 'answers' : 'answer'}</span>${opts.map(o => optionRow(q, o)).join('')}<button type="button" class="btn btn-ghost btn-sm" data-add-opt>${icon('plus', 14)} Add option</button>`;
+}
 function questionEditRow(q) {
-  const opts = (q.options || []).map(o => `<label class="check opt-row" data-opt data-oid="${o.id}"><input type="${q.type === 'mcq_multi' ? 'checkbox' : 'radio'}" name="corr-${q.id}" ${o.correct ? 'checked' : ''}><input class="input" type="text" value="${esc(o.text)}" placeholder="Option"></label>`).join('');
   return `<div class="card tight" data-qrow="${q.id}"><div class="form-grid">
-    <div class="field"><label class="label">Type</label><select class="input" data-type><option value="mcq_single" ${q.type === 'mcq_single' ? 'selected' : ''}>MCQ</option><option value="true_false" ${q.type === 'true_false' ? 'selected' : ''}>True/False</option><option value="mcq_multi" ${q.type === 'mcq_multi' ? 'selected' : ''}>Multi</option><option value="short" ${q.type === 'short' ? 'selected' : ''}>Short</option></select></div>
+    <div class="field"><label class="label">Type</label><select class="input" data-type><option value="mcq_single" ${q.type === 'mcq_single' ? 'selected' : ''}>Multiple choice (one answer)</option><option value="mcq_multi" ${q.type === 'mcq_multi' ? 'selected' : ''}>Multiple choice (several answers)</option><option value="true_false" ${q.type === 'true_false' ? 'selected' : ''}>True / False</option><option value="short" ${q.type === 'short' ? 'selected' : ''}>Short answer</option></select></div>
     <div class="field"><label class="label">Points</label><input class="input" type="number" data-pts value="${q.points || 1}" min="1"></div>
-    <div class="field full"><label class="label">Stem</label><textarea class="input" data-stem rows="2">${esc(q.stem || '')}</textarea></div>
-    <div class="field full" data-opts>${q.type === 'short' ? `<label class="label">Model answer</label><input class="input" data-model value="${esc(q.modelAnswer || '')}"><label class="label">Keywords</label><input class="input" data-kw value="${esc((q.keywords || []).join(', '))}">` : opts || '<p class="muted small">Add options below</p>'}</div>
-  </div></div>`;
+    <div class="field full"><label class="label">Question</label><textarea class="input" data-stem rows="2">${esc(q.stem || '')}</textarea></div>
+    <div class="field full stack-sm" data-opts>${questionOptsHTML(q)}</div>
+  </div><div class="row-end"><button type="button" class="btn btn-ghost btn-sm danger" data-del-q>${icon('trash', 14)} Remove question</button></div></div>`;
 }
 
 function aiGenerateQuizModal(course, done) {
