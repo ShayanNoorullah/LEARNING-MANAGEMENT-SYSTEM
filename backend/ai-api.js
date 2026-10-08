@@ -20,7 +20,11 @@ const SECRETS_FILE = process.env.VERCEL
 const USAGE_FILE = process.env.VERCEL
   ? path.join('/tmp', 'sdc-ai-usage.json')
   : path.join(__dirname, 'data', 'ai-usage.json');
-const LOCAL_OPEN = process.env.SDC_AI_LOCAL_OPEN !== '0';
+// When the state gateway is on, local AI token minting is off unless explicitly enabled.
+// (Stops anonymous /api/ai/auth with a guessed userId from minting AI JWTs in production.)
+const LOCAL_OPEN = GATEWAY_SIGN
+  ? process.env.SDC_AI_LOCAL_OPEN === '1'
+  : process.env.SDC_AI_LOCAL_OPEN !== '0';
 
 const CAPABILITIES = ['tutor', 'summarize', 'practiceQuiz', 'quizGenerate', 'quizCheck', 'evaluate', 'atRisk', 'sessionAssist', 'complete'];
 const PROVIDERS = ['openai', 'gemini', 'azure_openai'];
@@ -109,7 +113,8 @@ function auth(req, res, next) {
   const raw = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!raw) return res.status(401).json({ error: 'Sign in required for SDC Learn AI.' });
   if (GATEWAY_SIGN) {
-    try { req.uid = jwt.verify(raw, GATEWAY_SIGN).uid; return next(); } catch (e) { /* try local */ }
+    try { req.uid = jwt.verify(raw, GATEWAY_SIGN).uid; return next(); } catch (e) { /* fall through only if local minting allowed */ }
+    if (!LOCAL_OPEN) return res.status(401).json({ error: 'Your AI session expired. Sign in again.' });
   }
   try {
     const p = jwt.verify(raw, JWT_SECRET);

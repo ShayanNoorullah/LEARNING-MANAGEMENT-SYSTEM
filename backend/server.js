@@ -46,7 +46,15 @@ const UPLOAD_DIR=IS_VERCEL?path.join('/tmp','sdc-uploads'):path.join(__dirname,'
 fs.mkdirSync(path.dirname(DATA_FILE),{recursive:true});
 fs.mkdirSync(UPLOAD_DIR,{recursive:true});
 if(IS_VERCEL&&!fs.existsSync(DATA_FILE)&&fs.existsSync(BUNDLED_DATA_FILE))fs.copyFileSync(BUNDLED_DATA_FILE,DATA_FILE);
-app.use(async(req,res,next)=>{if(req.path.startsWith('/api/'))await loadFromNeon();next();});
+// Status/health never need the Neon passkey DB — don't block them on cold pull.
+// ponytail: still kick loadFromNeon() in the background so the next real API is warm.
+const API_LIGHT=new Set(['/api/health','/api/sdc/status','/api/ai/status']);
+app.use(async(req,res,next)=>{
+  if(!req.path.startsWith('/api/'))return next();
+  if(API_LIGHT.has(req.path)){loadFromNeon();return next();}
+  await loadFromNeon();
+  next();
+});
 // Shared state gateway (sign-in, state sync, certificate check) — see state-api.js.
 app.use(require('./state-api'));
 app.use(require('./ai-api')); // SDC Learn AI proxy (OpenAI / Gemini / Azure)

@@ -89,7 +89,7 @@ AI calls go through `backend/ai-api.js`. API keys are **never** stored in `local
 
 1. Copy `.env.example` values for OpenAI / Gemini / Azure OpenAI, **or** paste keys in **Settings → Integrations** (encrypted on the server under `backend/data/ai-secrets.json`).
 2. Optional: set `SDC_AI_SECRETS_KEY` (defaults to `SDC_STATE_SECRET` or `JWT_SECRET`).
-3. Local demo auth for AI uses a short-lived JWT (`SDC_AI_LOCAL_OPEN` defaults on). Set `SDC_AI_LOCAL_OPEN=0` in production when the state gateway is on — then the cloud session token is used.
+3. With the state gateway (`SDC_STATE_SECRET`) on, AI uses the cloud session token. Local `/api/ai/auth` minting stays **off** unless you set `SDC_AI_LOCAL_OPEN=1` (dev only). Without a gateway, local minting stays on for demos.
 4. Turn features on/off under **Settings → Features** (`ai`, `quizzes`, `aiTutor`, …) and map providers under **Integrations → Capability map**.
 
 ## 6. Sign in with Google

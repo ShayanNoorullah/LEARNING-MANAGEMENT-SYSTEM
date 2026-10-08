@@ -115,7 +115,10 @@ function persist(state) {
   catch (e) { toast('Browser storage is full. Remove large inline files or connect the upload server.', 'error'); throw e; }
 }
 function saveDB(state) {
-  _cache = normalizeState(state);
+  // In-place edits reuse the live cache — skip full deepMerge/clone on every keystroke.
+  // Restores / foreign snapshots still go through normalizeState (collections + password hash).
+  if (state !== _cache) _cache = normalizeState(state);
+  else if ((state.users || []).some(u => u.password)) _cache = normalizeState(state);
   persist(_cache);
   window.dispatchEvent(new Event('sdc-db-change'));
   if (window.SDCCloud?.syncNow) window.SDCCloud.syncNow();

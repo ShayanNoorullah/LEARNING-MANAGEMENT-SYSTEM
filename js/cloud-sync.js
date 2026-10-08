@@ -11,7 +11,19 @@
   const useful = s => s && typeof s === 'object' && Array.isArray(s.users) && s.users.length > 0 && Array.isArray(s.courses);
   const withTimeout = (p, ms = 8000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('Cloud timeout')), ms))]);
   const token = () => { try { return localStorage.getItem(TOKEN); } catch (e) { return null; } };
-  const mode = off ? Promise.resolve('off') : fetch('/api/sdc/status').then(r => r.ok ? r.json() : {}).then(j => j.gateway ? 'gateway' : 'direct').catch(() => 'direct');
+  // Cache gateway detection for this tab — status is not a secret; avoids a cold /api hit on every reload.
+  const mode = off ? Promise.resolve('off') : (async () => {
+    try {
+      const c = sessionStorage.getItem('sdcGwMode');
+      if (c === 'gateway' || c === 'direct') return c;
+    } catch (e) {}
+    try {
+      const j = await fetch('/api/sdc/status').then(r => r.ok ? r.json() : {});
+      const m = j.gateway ? 'gateway' : 'direct';
+      try { sessionStorage.setItem('sdcGwMode', m); } catch (e) {}
+      return m;
+    } catch (e) { return 'direct'; }
+  })();
   let client = null;
   const direct = () => client || (c.url && c.anonKey && !c.url.includes('YOUR_') && window.supabase?.createClient ? (client = window.supabase.createClient(c.url, c.anonKey, { auth: { persistSession: false } })) : null);
 
@@ -74,7 +86,7 @@
     verify: code => fetch('/api/sdc/verify?code=' + encodeURIComponent(code)).then(r => r.json()),
     publicSettings: () => api('/public').then(j => j.settings),
     // Signing out of a gateway session also drops the cached copy so the next person on this browser sees nothing.
-    signOut() { if (token()) { localStorage.removeItem(TOKEN); localStorage.removeItem(DBKEY); localStorage.removeItem(STAMP); localStorage.removeItem(PENDING); } }
+    signOut() { if (token()) { localStorage.removeItem(TOKEN); localStorage.removeItem(DBKEY); localStorage.removeItem(STAMP); localStorage.removeItem(PENDING); } try { sessionStorage.removeItem('sdcGwMode'); } catch (e) {} }
   };
   window.addEventListener('pagehide', () => { if (timer) { clearTimeout(timer); flush(); } });
   window.SDCCloud.ready = new Promise(r => setTimeout(() => pull().finally(r), 100));
