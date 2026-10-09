@@ -195,11 +195,11 @@ App.route('/course/:id/quizzes', { perm: ['learn', 'courses'], feature: 'quizzes
   if (error) return deniedPage(ctx, error);
   const u = ctx.user, isLearner = kind(u) === 'student';
   courseCrumbs(ctx, course, [{ label: t('quizzes') }]);
-  const quizzes = isLearner ? Domain.publishedQuizzes(course.id) : Domain.courseQuizzes(course.id);
-  ctx.root.innerHTML = `${pageHead(t('quizzes'), isLearner ? `Graded checks for ${esc(course.title)}.` : `Manage ${t('quizzes', true)} in the course builder.`, !isLearner && Domain.canManageCourse(u, course) ? `<a class="btn btn-primary btn-sm" href="#/manage/course/${course.id}?tab=quizzes">${icon('edit', 15)} Builder</a>` : '')}
+  const quizzes = isLearner ? Domain.learnerQuizzes(u.id, course.id) : Domain.courseQuizzes(course.id);
+  ctx.root.innerHTML = `${pageHead(t('quizzes'), isLearner ? `Graded checks for ${esc(course.title)}.` : `${t('quizzes')} are set per ${t('batch', true)} — open a ${t('batch', true)} to manage them.`, !isLearner && Domain.canManageCourse(u, course) ? `<a class="btn btn-primary btn-sm" href="#/manage/course/${course.id}?tab=batches">${icon('grid', 15)} ${t('batches')}</a>` : '')}
     ${quizzes.length ? `<div class="course-grid">${quizzes.map(q => {
       const best = isLearner ? db().quizAttempts.filter(a => a.quizId === q.id && a.learnerId === u.id && a.status === 'Submitted').sort((a, b) => b.percent - a.percent)[0] : null;
-      return `<div class="card"><div class="row-between"><b>${esc(q.title)}</b>${badge(q.status)}</div><p class="small muted">${esc(q.description || '')}</p>
+      return `<div class="card"><div class="row-between"><b>${esc(q.title)}</b>${badge(q.status)}</div>${isLearner ? '' : `<p class="small">${esc(findRecord('batches', q.batchId)?.name || 'No ' + t('batch', true))}</p>`}<p class="small muted">${esc(q.description || '')}</p>
         <p class="small">${Domain.quizQuestions(q).length} questions${q.attemptLimit ? ` · max ${q.attemptLimit} attempts` : ''}</p>
         ${best ? `<p><b>Best: ${best.percent}%</b></p>` : ''}
         ${isLearner && q.status === 'published' ? `<a class="btn btn-primary btn-sm" href="#/course/${course.id}/quiz/${q.id}">${icon('play', 14)} Attempt</a>` : ''}</div>`;
@@ -210,17 +210,17 @@ App.route('/course/:id/quiz/:qid', { perm: 'learn', feature: 'quizzes', base: 's
   const { course, error } = courseAccess(ctx.user, ctx.params.id);
   if (error) return deniedPage(ctx, error);
   const quiz = findRecord('quizzes', ctx.params.qid);
-  if (!quiz || quiz.courseId !== course.id || quiz.status !== 'published') return deniedPage(ctx, 'Quiz not available.');
+  if (!quiz || quiz.courseId !== course.id || quiz.status !== 'published' || quiz.batchId !== Domain.learnerBatchId(ctx.user.id, course.id)) return deniedPage(ctx, 'Quiz not available.');
   renderQuizAttempt(ctx, course, quiz);
 } });
 
 /* --------------------------- Course builder quizzes ---------------------- */
-function builderQuizzes(pane, course, ctx) {
-  const quizzes = Domain.courseQuizzes(course.id);
+function builderQuizzes(pane, batch, ctx) {
+  const course = findRecord('courses', batch.courseId);
   pane.innerHTML = `<div class="card-head row-between wrap gap-sm"><h3>${t('quizzes')}</h3><div class="row gap-sm">${feature('aiQuizGen') && Domain.aiEnabled() && can('ai', 'use') ? `<button class="btn btn-secondary btn-sm" data-gen>${icon('sparkles', 14)} Generate with SDC Learn AI</button>` : ''}${can('quizzes', 'create') || can('courses', 'edit') ? `<button class="btn btn-primary btn-sm" data-new>${icon('plus', 14)} New ${t('quiz', true)}</button>` : ''}</div></div>
     <div class="card" data-t></div>`;
   dataTable(pane.querySelector('[data-t]'), {
-    rows: () => Domain.courseQuizzes(course.id),
+    rows: () => Domain.batchQuizzes(batch.id),
     columns: [
       { key: 'title', label: 'Title', primary: true, render: q => `<b>${esc(q.title)}</b><small class="muted block">${Domain.quizQuestions(q).length} questions</small>` },
       { key: 'status', label: 'Status', render: q => badge(q.status) },
@@ -229,15 +229,15 @@ function builderQuizzes(pane, course, ctx) {
     actions: q => `<button class="btn btn-ghost btn-sm" data-edit="${q.id}">Edit</button>${q.status !== 'published' ? `<button class="btn btn-primary btn-sm" data-pub="${q.id}">Publish</button>` : `<button class="btn btn-ghost btn-sm" data-un="${q.id}">Unpublish</button>`}<button class="btn btn-ghost btn-sm danger" data-del="${q.id}">${icon('trash', 14)}</button>`,
     emptyTitle: `No ${t('quizzes', true)}`, emptyIcon: 'clipboard',
     onDraw: body => {
-      body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => quizEditorModal(course, findRecord('quizzes', b.dataset.edit), () => ctx.refresh()));
+      body.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => quizEditorModal(course, findRecord('quizzes', b.dataset.edit), () => ctx.refresh(), batch));
       body.querySelectorAll('[data-att]').forEach(b => b.onclick = () => quizAttemptsModal(findRecord('quizzes', b.dataset.att), () => ctx.refresh()));
       body.querySelectorAll('[data-pub]').forEach(b => b.onclick = () => { updateRecord('quizzes', b.dataset.pub, { status: 'published' }); toast('Published.'); ctx.refresh(); });
       body.querySelectorAll('[data-un]').forEach(b => b.onclick = () => { updateRecord('quizzes', b.dataset.un, { status: 'draft' }); toast('Unpublished.'); ctx.refresh(); });
       body.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (await confirmDialog('Delete this quiz?', { danger: true })) { deleteRecord('quizzes', b.dataset.del); ctx.refresh(); } });
     }
   });
-  pane.querySelector('[data-new]')?.addEventListener('click', () => quizEditorModal(course, null, () => ctx.refresh()));
-  pane.querySelector('[data-gen]')?.addEventListener('click', () => aiGenerateQuizModal(course, () => ctx.refresh()));
+  pane.querySelector('[data-new]')?.addEventListener('click', () => quizEditorModal(course, null, () => ctx.refresh(), batch));
+  pane.querySelector('[data-gen]')?.addEventListener('click', () => aiGenerateQuizModal(course, () => ctx.refresh(), batch));
 }
 
 /* CHK: the instructor sees each short answer with the AI score and rationale, and the score they set is final. */
@@ -271,7 +271,7 @@ function quizAttemptsModal(quiz, done) {
   });
 }
 
-function quizEditorModal(course, quiz, done) {
+function quizEditorModal(course, quiz, done, batch) {
   const qs = quiz ? Domain.quizQuestions(quiz) : [];
   const fields = [
     { name: 'title', label: 'Title', required: true },
@@ -334,7 +334,7 @@ function quizEditorModal(course, quiz, done) {
       if (existing) updateRecord('questions', id, payload); else addRecord('questions', { ...payload, id });
       questionIds.push(id);
     });
-    const data = { courseId: course.id, title: r.title, description: r.description || '', questionIds, attemptLimit: Number(r.attemptLimit) || 0, passPercent: Number(r.passPercent) || 50, shuffle: !!r.shuffle, status: quiz?.status || 'draft', timeLimitSec: 0 };
+    const data = { courseId: course.id, batchId: quiz?.batchId || batch?.id || '', title: r.title, description: r.description || '', questionIds, attemptLimit: Number(r.attemptLimit) || 0, passPercent: Number(r.passPercent) || 50, shuffle: !!r.shuffle, status: quiz?.status || 'draft', timeLimitSec: 0 };
     if (quiz) updateRecord('quizzes', quiz.id, data); else addRecord('quizzes', data);
     m.close(); toast('Quiz saved.'); done?.();
   };
@@ -362,7 +362,7 @@ function questionEditRow(q) {
   </div><div class="row-end"><button type="button" class="btn btn-ghost btn-sm danger" data-del-q>${icon('trash', 14)} Remove question</button></div></div>`;
 }
 
-function aiGenerateQuizModal(course, done) {
+function aiGenerateQuizModal(course, done, batch) {
   const sessions = Domain.courseSessions(course.id);
   const m = openModal({
     title: 'SDC Learn AI — Generate quiz',
@@ -396,7 +396,7 @@ function aiGenerateQuizModal(course, done) {
       addRecord('questions', { id, courseId: course.id, type: q.type || 'mcq_single', stem: q.stem, options: q.options || [], modelAnswer: q.modelAnswer || '', keywords: q.keywords || [], points: q.points || 1, difficulty: 'medium', tags: [] });
       return id;
     });
-    addRecord('quizzes', { courseId: course.id, title: `AI draft — ${course.code || course.title}`, description: 'Generated with SDC Learn AI — review before publishing.', questionIds, attemptLimit: 2, shuffle: false, status: 'draft', passPercent: 50, timeLimitSec: 0 });
+    addRecord('quizzes', { courseId: course.id, batchId: batch?.id || '', title: `AI draft — ${course.code || course.title}`, description: 'Generated with SDC Learn AI — review before publishing.', questionIds, attemptLimit: 2, shuffle: false, status: 'draft', passPercent: 50, timeLimitSec: 0 });
     m.close(); toast('Draft quiz created — review in builder.'); done?.();
   };
 }

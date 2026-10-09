@@ -98,12 +98,7 @@ function normalizeState(input) {
   if (src.settings.brand.logoUrl === 'assets/brand/sdc-logo.svg') src.settings.brand.logoUrl = DEFAULT_SETTINGS.brand.logoUrl; // placeholder replaced by official logo
   // Seeded demo users carry a plaintext password once; store only salted hashes.
   src.users.forEach(u => { if (u.password) { u.salt = u.salt || randomToken(8); u.passwordHash = hashPassword(u.password, u.salt); delete u.password; } });
-  // Schema 2 (Phase 2): give built-in roles the new ai/quizzes defaults once; later admin edits are left alone.
-  if ((src.schema || 1) < 2) {
-    src.roles.forEach(r => { const s = (seed.roles || []).find(x => x.id === r.id); if (!s || !r.permissions) return; ['ai', 'quizzes'].forEach(m => { if (!r.permissions[m] && s.permissions?.[m]) r.permissions[m] = [...s.permissions[m]]; }); });
-    src.schema = 2;
-  }
-  return src;
+  return migrateState(src, seed.roles); // js/migrations.js — shared with the server
 }
 function db() {
   if (_cache) return _cache;
@@ -355,7 +350,15 @@ const Domain = {
   learnerEnrollments(learnerId) { return db().enrollments.filter(e => e.learnerId === learnerId && e.status !== 'Withdrawn'); },
   enrollment(learnerId, courseId) { return db().enrollments.find(e => e.learnerId === learnerId && e.courseId === courseId && e.status !== 'Withdrawn'); },
   courseSessions(courseId, includeDrafts) { return db().sessions.filter(s => s.courseId === courseId && (includeDrafts || s.published !== false)).sort(byOrder); },
+  // A course is a blueprint (modules + sessions). Assignments and quizzes belong to a batch, so a
+  // learner only ever sees the work set for their own batch — never work added for a later batch.
   courseAssignments(courseId, includeDrafts) { return db().assignments.filter(a => a.courseId === courseId && (includeDrafts || a.status !== 'Draft')).sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt))); },
+  batchAssignments(batchId, includeDrafts) { return batchId ? db().assignments.filter(a => a.batchId === batchId && (includeDrafts || a.status !== 'Draft')).sort((a, b) => String(a.dueAt).localeCompare(String(b.dueAt))) : []; },
+  learnerBatchId(learnerId, courseId) { return Domain.enrollment(learnerId, courseId)?.batchId || ''; },
+  learnerAssignments(learnerId, courseId) { return Domain.batchAssignments(Domain.learnerBatchId(learnerId, courseId)); },
+  assignmentsFor(user, courseId) { return kind(user) === 'student' ? Domain.learnerAssignments(user.id, courseId) : Domain.courseAssignments(courseId); },
+  batchLearners(batchId) { return db().enrollments.filter(e => e.batchId === batchId && e.status !== 'Withdrawn').map(e => ({ enrollment: e, user: findRecord('users', e.learnerId) })).filter(x => x.user); },
+  canManageBatch(user, batch) { const c = batch && findRecord('courses', batch.courseId); return !!c && (Domain.canManageCourse(user, c) || (batch.instructorId === user?.id && can('courses', 'edit', user))); },
   courseLearners(courseId) { return db().enrollments.filter(e => e.courseId === courseId && e.status !== 'Withdrawn').map(e => ({ enrollment: e, user: findRecord('users', e.learnerId) })).filter(x => x.user); },
   instructorCourses(userId) { return db().courses.filter(c => (c.instructorIds || []).includes(userId)); },
   visibleCourses(user) {
@@ -423,7 +426,7 @@ const Domain = {
     return { total: rows.length, present, absent: rows.filter(a => a.status === 'Absent').length, late: rows.filter(a => a.status === 'Late').length, percent: rows.length ? pct(present, rows.length) : null };
   },
   assignmentAverage(learnerId, courseId) {
-    const as = Domain.courseAssignments(courseId);
+    const as = Domain.learnerAssignments(learnerId, courseId);
     const graded = as.map(a => ({ a, s: Domain.submissionFor(a.id, learnerId) })).filter(x => x.s && x.s.grade !== null && x.s.grade !== undefined && x.s.grade !== '');
     if (!graded.length) return null;
     return Math.round(sum(graded, x => (Number(x.s.grade) / (Number(x.a.maxMarks) || 100)) * 100) / graded.length);
@@ -447,6 +450,8 @@ const Domain = {
   /* ---------------- quizzes & SDC Learn AI helpers ---------------- */
   courseQuizzes(courseId) { return db().quizzes.filter(q => q.courseId === courseId).sort((a, b) => String(a.title).localeCompare(String(b.title))); },
   publishedQuizzes(courseId) { return Domain.courseQuizzes(courseId).filter(q => q.status === 'published'); },
+  batchQuizzes(batchId) { return batchId ? db().quizzes.filter(q => q.batchId === batchId).sort((a, b) => String(a.title).localeCompare(String(b.title))) : []; },
+  learnerQuizzes(learnerId, courseId) { return Domain.batchQuizzes(Domain.learnerBatchId(learnerId, courseId)).filter(q => q.status === 'published'); },
   quizQuestions(quiz) { const ids = quiz?.questionIds || []; return ids.map(id => findRecord('questions', id)).filter(Boolean); },
   scoreObjective(question, answer) {
     if (!question) return { correct: false, points: 0 };
@@ -483,7 +488,7 @@ const Domain = {
     return { score, maxScore, percent: maxScore ? Math.round((score / maxScore) * 100) : 0, pending, detail };
   },
   quizAverage(learnerId, courseId) {
-    const quizzes = Domain.publishedQuizzes(courseId);
+    const quizzes = Domain.learnerQuizzes(learnerId, courseId);
     if (!quizzes.length) return null;
     const scores = quizzes.map(q => {
       const attempts = db().quizAttempts.filter(a => a.quizId === q.id && a.learnerId === learnerId && a.status === 'Submitted');
@@ -524,7 +529,7 @@ const Domain = {
       const sessions = Domain.courseSessions(en.courseId);
       const past = sessions.filter(s => s.date && s.date < today);
       if (past.length >= 2 && prog.percent < 30) factors.push(`Low progress (${prog.percent}%) after ${past.length} past sessions`);
-      const miss = Domain.courseAssignments(en.courseId).filter(a => {
+      const miss = Domain.learnerAssignments(en.learnerId, en.courseId).filter(a => {
         const st = Domain.assignmentState(a, en.learnerId);
         return st.status === 'Missing' || (st.status === 'Pending' && a.dueAt && new Date(a.dueAt) < new Date());
       });

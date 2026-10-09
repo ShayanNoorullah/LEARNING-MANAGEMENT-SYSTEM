@@ -107,7 +107,7 @@ App.route('/courses', { perm: 'learn', base: 'student', render(ctx) {
   const list = enrollments.map(e => ({ e, c: findRecord('courses', e.courseId) })).filter(x => x.c && x.c.status === 'published');
   const today = todayISO();
   const upcoming = list.flatMap(({ c, e }) => Domain.courseSessions(c.id).filter(s => s.date >= today && Domain.sessionUnlocked(s, e)).slice(0, 1).map(s => ({ s, c }))).sort((a, b) => (a.s.date + a.s.time).localeCompare(b.s.date + b.s.time))[0];
-  const pending = list.flatMap(({ c }) => Domain.courseAssignments(c.id).filter(a => Domain.assignmentState(a, u.id).status === 'Pending'));
+  const pending = list.flatMap(({ c }) => Domain.learnerAssignments(u.id, c.id).filter(a => Domain.assignmentState(a, u.id).status === 'Pending'));
   const hour = new Date().getHours();
   ctx.root.innerHTML = `
     ${pageHead(`Good ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}, ${u.name.split(' ')[0]}`, `You're enrolled in ${list.length} ${list.length === 1 ? t('course', true) : t('courses', true)}.`)}
@@ -152,7 +152,7 @@ App.route('/course/:id', { perm: ['learn', 'courses'], render(ctx) {
   courseCrumbs(ctx, course);
   courseTools(ctx, course);
   const sessions = Domain.courseSessions(course.id), prog = isLearner ? Domain.progress(u.id, course.id) : null;
-  const assignments = Domain.courseAssignments(course.id);
+  const assignments = Domain.assignmentsFor(u, course.id);
   const instructors = (course.instructorIds || []).map(id => findRecord('users', id)).filter(Boolean);
   const resumeId = prog?.lastSessionId && sessions.some(s => s.id === prog.lastSessionId) ? prog.lastSessionId : (sessions.find(s => !prog?.completed.includes(s.id) && Domain.sessionUnlocked(s, enrollment)) || sessions[0])?.id;
   const next = Domain.nextSession(course.id);
@@ -188,7 +188,7 @@ App.route('/course/:id', { perm: ['learn', 'courses'], render(ctx) {
         <div class="session-list" data-list>
           <a class="session-row pinned" href="#/course/${course.id}/outline"><span class="s-num">${icon('map', 16)}</span><div class="s-body"><b>Course Outline</b><small>Learning outcomes, modules and the full roadmap.</small></div>${badge('Outline')}</a>
           ${isLearner && assignments.length ? `<a class="session-row pinned" href="#/course/${course.id}/submit"><span class="s-num">${icon('upload', 16)}</span><div class="s-body"><b>Submit ${t('assignment')}</b><small>${pendingCount ? `${pendingCount} pending · upload or replace your work.` : 'Upload or replace your work.'}</small></div>${badge('Submit')}</a>` : ''}
-          ${feature('quizzes') ? `<a class="session-row pinned" href="#/course/${course.id}/quizzes"><span class="s-num">${icon('clipboard', 16)}</span><div class="s-body"><b>${t('quizzes')}</b><small>${Domain.publishedQuizzes(course.id).length} published graded ${t('quizzes', true).toLowerCase()}.</small></div>${badge(t('quizzes'))}</a>` : ''}
+          ${feature('quizzes') ? `<a class="session-row pinned" href="#/course/${course.id}/quizzes"><span class="s-num">${icon('clipboard', 16)}</span><div class="s-body"><b>${t('quizzes')}</b><small>${(isLearner ? Domain.learnerQuizzes(u.id, course.id) : Domain.publishedQuizzes(course.id)).length} published graded ${t('quizzes', true).toLowerCase()}.</small></div>${badge(t('quizzes'))}</a>` : ''}
           ${sessionGroups(sessions, s => sessionRow(course, s, sessionStatusFor(u, s, enrollment, prog), sessions.indexOf(s) + 1))}
           ${sessions.length ? '' : emptyState(`No ${t('sessions', true)} yet`, `${t('sessions')} will appear here once they are scheduled.`, 'calendar')}
         </div>
@@ -243,7 +243,7 @@ App.route('/course/:id/session/:sid', { perm: ['learn', 'courses'], render(ctx) 
   if (isLearner && unlocked) Domain.touchSession(u.id, course.id, s.id);
   const prog = isLearner ? Domain.progress(u.id, course.id) : null, done = prog?.completed.includes(s.id);
   const status = sessionStatusFor(u, s, enrollment, prog);
-  const assignment = db().assignments.find(a => a.sessionId === s.id && a.status !== 'Draft');
+  const assignment = Domain.assignmentsFor(u, course.id).find(a => a.sessionId === s.id);
   const ast = assignment && isLearner ? Domain.assignmentState(assignment, u.id) : null;
   const prev = sessions[i - 1], next = sessions[i + 1];
   const zoom = Domain.zoomFor(course, s);
@@ -330,7 +330,7 @@ App.route('/course/:id/submit', { perm: 'learn', base: 'student', render(ctx) {
   const u = ctx.user;
   courseCrumbs(ctx, course, [{ label: `Submit ${t('assignment')}` }]);
   courseTools(ctx, course);
-  const assignments = Domain.courseAssignments(course.id);
+  const assignments = Domain.learnerAssignments(u.id, course.id);
   const sessions = Domain.courseSessions(course.id, true);
   const cfg = lms(), types = csvList(cfg.allowedTypes);
   let maxMB = Number(cfg.uploadMaxMB) || 30;
@@ -402,7 +402,7 @@ App.route('/assignments', { perm: 'learn', base: 'student', render(ctx) {
   const u = ctx.user;
   ctx.setCrumbs([{ label: t('assignments') }]);
   const courses = Domain.visibleCourses(u);
-  const rows = courses.flatMap(c => Domain.courseAssignments(c.id).map(a => ({ a, c, ...Domain.assignmentState(a, u.id) })));
+  const rows = courses.flatMap(c => Domain.learnerAssignments(u.id, c.id).map(a => ({ a, c, ...Domain.assignmentState(a, u.id) })));
   const count = s => rows.filter(r => r.status === s).length;
   ctx.root.innerHTML = `${pageHead(`My ${t('assignments')}`, `Track deadlines, submissions and feedback across your ${t('courses', true)}.`)}
     <div class="stats">${statCard('Pending', count('Pending'), 'clock')}${statCard('Submitted', count('Submitted') + count('Late'), 'upload')}${statCard('Graded', count('Graded'), 'award')}${statCard('Missing', count('Missing'), 'alert')}</div>
@@ -429,7 +429,7 @@ App.route('/calendar', { perm: 'calendar', feature: 'calendar', render(ctx) {
   const courses = Domain.visibleCourses(u).filter(c => kind(u) !== 'student' || c.status === 'published');
   const events = courses.flatMap(c => [
     ...Domain.courseSessions(c.id).filter(s => s.date).map(s => ({ date: s.date, time: s.time, title: s.title, sub: c.title, color: c.accent, href: `#/course/${c.id}/session/${s.id}`, kind: 'session' })),
-    ...Domain.courseAssignments(c.id).filter(a => a.dueAt).map(a => ({ date: a.dueAt.slice(0, 10), time: a.dueAt.slice(11, 16), title: `Due: ${a.title}`, sub: c.title, color: c.accent, href: kind(u) === 'student' ? `#/course/${c.id}/submit?assignment=${a.id}` : `#/submissions?assignment=${a.id}`, kind: 'due' }))
+    ...Domain.assignmentsFor(u, c.id).filter(a => a.dueAt).map(a => ({ date: a.dueAt.slice(0, 10), time: a.dueAt.slice(11, 16), title: `Due: ${a.title}`, sub: c.title, color: c.accent, href: kind(u) === 'student' ? `#/course/${c.id}/submit?assignment=${a.id}` : `#/submissions?assignment=${a.id}`, kind: 'due' }))
   ]).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   let cursor = ctx.query.m ? new Date(ctx.query.m + '-01T00:00:00') : new Date(); cursor.setDate(1);
   const draw = () => {

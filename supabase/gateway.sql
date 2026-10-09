@@ -71,7 +71,7 @@ begin
   insert into sdc_learn_kv (key, value, updated_at) values (p_key, p_value, now())
   on conflict (key) do update set value = excluded.value, updated_at = excluded.updated_at;
   return true;
-end $;
+end $$;
 
 revoke all on function public.sdc_kv_get(text, text) from public;
 revoke all on function public.sdc_kv_put(text, text, jsonb) from public;

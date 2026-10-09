@@ -139,11 +139,11 @@
     check($('[data-submit]').disabled, 'upload not blocked for graded work'); check(/graded/i.test(text()), 'no graded message');
   });
   await tc('TC-041', async () => {
-    const a = addRecord('assignments', { courseId: 'C-EXCEL', sessionId: 'S-EX-1', title: 'QA closed', dueAt: new Date(Date.now() - 864e5).toISOString().slice(0, 16), maxMarks: 10, lateAllowed: false, status: 'Published' });
+    const a = addRecord('assignments', { courseId: 'C-EXCEL', batchId: 'B-EX-1', sessionId: 'S-EX-1', title: 'QA closed', dueAt: new Date(Date.now() - 864e5).toISOString().slice(0, 16), maxMarks: 10, lateAllowed: false, status: 'Published' });
     await go(`#/course/C-EXCEL/submit?assignment=${a.id}`); check($('[data-submit]').disabled && /closed|deadline|passed/i.test(text()), 'late submission not blocked');
   });
   await tc('TC-042', async () => {
-    const a = addRecord('assignments', { courseId: 'C-EXCEL', sessionId: 'S-EX-1', title: 'QA late ok', dueAt: new Date(Date.now() - 864e5).toISOString().slice(0, 16), maxMarks: 10, lateAllowed: true, status: 'Published' });
+    const a = addRecord('assignments', { courseId: 'C-EXCEL', batchId: 'B-EX-1', sessionId: 'S-EX-1', title: 'QA late ok', dueAt: new Date(Date.now() - 864e5).toISOString().slice(0, 16), maxMarks: 10, lateAllowed: true, status: 'Published' });
     await go(`#/course/C-EXCEL/submit?assignment=${a.id}`); $('#sub-e').value = 'learner@sdclearn.demo'; await drop(fileOf('late.xlsx', 500)); $('[data-form]').requestSubmit();
     for (let i = 0; i < 40 && !/Submission received/.test(text()); i++) await W(150);
     const s = Domain.submissionFor(a.id, 'u-ali'); check(s?.status === 'Late' && s.uploadedAt, 'not flagged Late: ' + s?.status);
@@ -400,7 +400,7 @@
   /* ---------------- End to end ---------------- */
   await tc('TC-094', async () => {
     resetDemoData(); await as('u-admin');
-    await go('#/enrollments'); await click('[data-add]'); fill('learnerId', 'u-zara'); fill('courseId', 'C-EXCEL'); fill('accessMode', 'full'); await save(); check(Domain.enrollment('u-zara', 'C-EXCEL'), '1 enroll');
+    await go('#/enrollments'); await click('[data-add]'); fill('learnerId', 'u-zara'); fill('courseId', 'C-EXCEL'); fill('batchId', 'B-EX-1'); fill('accessMode', 'full'); await save(); check(Domain.enrollment('u-zara', 'C-EXCEL'), '1 enroll');
     await as('u-zara'); await go('#/course/C-EXCEL'); await click('[data-zoom-btn]'); check(!$('[data-zoom-pop]').hidden, '2 zoom');
     await go('#/course/C-EXCEL/submit?assignment=A-EX-1'); $('#sub-e').value = 'zara@sdclearn.demo'; await drop(fileOf('zara.xlsx', 900)); $('[data-form]').requestSubmit();
     for (let i = 0; i < 40 && !/Submission received/.test(text()); i++) await W(150); check(Domain.submissionFor('A-EX-1', 'u-zara'), '3 submit');

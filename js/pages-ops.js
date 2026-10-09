@@ -522,8 +522,8 @@ App.route('/reports', { perm: 'reports', render(ctx) {
   const d = db(), courses = d.courses.filter(c => c.status !== 'draft');
   const rows = courses.map(c => {
     const ls = Domain.courseLearners(c.id), ids = ls.map(x => x.user.id);
-    const att = d.attendance.filter(a => a.courseId === c.id), subs = d.submissions.filter(s => s.courseId === c.id), asg = Domain.courseAssignments(c.id);
-    return { c, n: ls.length, progress: ls.length ? Math.round(sum(ids, id => Domain.progress(id, c.id).percent) / ls.length) : 0, attendance: att.length ? pct(att.filter(a => a.status !== 'Absent').length, att.length) : null, submissionRate: asg.length && ls.length ? pct(subs.length, asg.length * ls.length) : null, certs: d.certificates.filter(x => x.courseId === c.id && x.status === 'Valid').length, revenue: sum(d.fees.filter(f => f.courseId === c.id && f.status === 'Paid'), f => f.amount) };
+    const att = d.attendance.filter(a => a.courseId === c.id), subs = d.submissions.filter(s => s.courseId === c.id), expected = sum(ls, x => Domain.learnerAssignments(x.user.id, c.id).length);
+    return { c, n: ls.length, progress: ls.length ? Math.round(sum(ids, id => Domain.progress(id, c.id).percent) / ls.length) : 0, attendance: att.length ? pct(att.filter(a => a.status !== 'Absent').length, att.length) : null, submissionRate: expected ? pct(subs.length, expected) : null, certs: d.certificates.filter(x => x.courseId === c.id && x.status === 'Valid').length, revenue: sum(d.fees.filter(f => f.courseId === c.id && f.status === 'Paid'), f => f.amount) };
   });
   const fb = d.feedback.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
   const avgRating = fb.length ? (sum(fb, f => f.rating) / fb.length).toFixed(1) : '—';

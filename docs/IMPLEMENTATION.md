@@ -37,7 +37,7 @@ Browser                                                     Server (optional)
 | `js/seed.js` | Demo catalogue: roles, users, divisions, programs, courses, sessions, assignments, enrollments and more; dates relative to today |
 | `js/shell.js` | `App`: route registry, permission-filtered menu, top bar, notifications, breadcrumbs, page context |
 | `js/pages-learn.js` | My Courses, course home, session page, outline, submit assignment, learner assignments, calendar |
-| `js/pages-manage.js` | Generic CRUD page (`crudPage`), course list and builder (sessions, resources, assignments, learners), enrollments, programs, divisions, batches |
+| `js/pages-manage.js` | Generic CRUD page (`crudPage`), course list and builder (sessions, resources, batches, learners), batch workspace (assignments, quizzes, learners, copy from another batch), enrollments, programs, divisions, batches |
 | `js/pages-users.js` | Learner/instructor/all-user accounts, roles & permissions |
 | `js/pages-ops.js` | Dashboards, submissions & grading, attendance, results, certificates, fees, announcements, messages, notifications, reports, settings, profile |
 | `js/cloud-config.js`, `js/cloud-sync.js` | Supabase connection and background sync |
@@ -61,7 +61,7 @@ One state object, key `sdcLearnDB_v1`. `normalizeState()` fills missing collecti
 | `courses` | `id, slug, code, title, tagline, description, level, programId, divisionId, programType, delivery, status (draft\|published\|archived), instructorIds[], startDate, endDate, duration, schedule, venue, fee, accent, icon, outcomes[], modules[{name,summary}], prerequisites, helpUrl, zoom{registerUrl,meetingId,password}` |
 | `batches` | `id, courseId, name, instructorId, startDate, endDate, delivery, venue, capacity, status` |
 | `sessions` | `id, courseId, order, moduleName, title, date, time, duration, summary, videoUrl, resources[{id,title,type,url,size}], delivery, statusOverride, zoom{…}, published` |
-| `assignments` | `id, courseId, sessionId, title, description, dueAt, maxMarks, lateAllowed, status` |
+| `assignments` | `id, courseId, batchId, sessionId, title, description, dueAt, maxMarks, lateAllowed, status` — owned by a batch; learners see only their batch's |
 | `enrollments` | `id, learnerId, courseId, batchId, enrolledAt, accessMode (full\|restricted), allowedSessionIds[], status` |
 | `submissions` | `id, assignmentId, sessionId, courseId, learnerId, email, fileName, fileUrl, size, stored (server\|inline), uploadedAt, status (Submitted\|Late\|Graded), grade, feedback, history[]` |
 | `progress` | `id, learnerId, courseId, completedSessionIds[], lastSessionId` |
@@ -76,6 +76,8 @@ One state object, key `sdcLearnDB_v1`. `normalizeState()` fills missing collecti
 | `settings` | `brand, theme, terms, lms, features, general` — see `DEFAULT_SETTINGS` in `core.js` |
 
 Store API (all in `core.js`): `db()`, `saveDB(state)`, `getData(key)`, `addRecord(key, rec)`, `updateRecord(key, id, patch)`, `deleteRecord(key, id)`, `findRecord(key, id)`, `resetDemoData()`.
+
+**Courses are blueprints, batches own the work.** A course holds modules and sessions only. Assignments and quizzes carry a `batchId`, and every learner view (`Domain.learnerAssignments`, `learnerQuizzes`, results averages, at-risk) filters by the learner's enrollment batch, so work set for a new batch never reaches earlier or completed batches. `js/migrations.js` (shared by the browser and the server) upgraded older course-level items once (schema 3): each was copied to the batches still running when it was created, submissions and attempts followed their learner's batch, and items matching no running batch were left unassigned (staff can copy them into a batch).
 
 ## Roles & permissions
 
@@ -112,7 +114,8 @@ Safety rules: the built-in `admin` role always has full access and its matrix is
 | `/dashboard` | Staff dashboard |
 | `/courses`, `/assignments` | Learner: My Courses, my assignments |
 | `/course/:id` · `/session/:sid` · `/outline` · `/submit` | Course home, session, outline, submission |
-| `/manage/courses`, `/manage/course/:id?tab=` | Course list and builder (overview, sessions, assignments, learners) |
+| `/manage/courses`, `/manage/course/:id?tab=` | Course list and builder (overview, sessions, batches, learners) — a course is a blueprint of modules and sessions |
+| `/manage/batch/:id?tab=` | Batch workspace: assignments, quizzes, learners; copy work from another batch |
 | `/programs` `/divisions` `/batches` `/enrollments` | Catalogue and enrollment |
 | `/learners` `/instructors` `/users` `/roles` | People and access |
 | `/submissions` `/attendance` `/results` `/certificates` `/fees` `/calendar` | Delivery and operations |

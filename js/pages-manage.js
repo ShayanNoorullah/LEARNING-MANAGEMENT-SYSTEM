@@ -105,7 +105,7 @@ async function deleteCourse(id, done) {
   const c = findRecord('courses', id), n = Domain.courseLearners(id).length;
   if (!(await confirmDialog(`Delete "${c.title}"? This also removes its ${t('sessions', true)}, ${t('assignments', true)}, submissions, attendance and ${n} enrollment${n === 1 ? '' : 's'}.`, { title: `Delete ${t('course', true)}`, confirmText: 'Delete', danger: true }))) return;
   const d = db();
-  ['sessions', 'assignments', 'submissions', 'attendance', 'enrollments', 'progress', 'results', 'batches', 'feedback'].forEach(k => { d[k] = d[k].filter(x => x.courseId !== id); });
+  ['sessions', 'assignments', 'submissions', 'attendance', 'enrollments', 'progress', 'results', 'batches', 'feedback', 'quizzes', 'quizAttempts'].forEach(k => { d[k] = d[k].filter(x => x.courseId !== id); });
   d.courses = d.courses.filter(x => x.id !== id);
   saveDB(d); toast(`${t('course')} deleted.`); done?.();
 }
@@ -181,7 +181,7 @@ App.route('/manage/course/:id', { perm: 'courses', render(ctx) {
   if (!course || !Domain.canManageCourse(u, course)) return deniedPage(ctx, `You can't manage this ${t('course', true)}.`);
   const tab = ctx.query.tab || 'overview';
   ctx.setCrumbs([{ label: scopeAll(u) ? t('courses') : `My ${t('courses')}`, href: '#/manage/courses' }, { label: course.title }]);
-  const tabs = [['overview', 'Overview', 'layout'], ['sessions', t('sessions'), 'layers'], ['assignments', t('assignments'), 'clipboard'], ...(feature('quizzes') ? [['quizzes', t('quizzes'), 'clipboard']] : []), ['learners', t('learners'), 'users']];
+  const tabs = [['overview', 'Overview', 'layout'], ['sessions', t('sessions'), 'layers'], ['batches', t('batches'), 'grid'], ['learners', t('learners'), 'users']];
   ctx.root.innerHTML = `
     <div class="page-head"><div><span class="eyebrow">${esc(course.code || t('course'))} · ${badge(course.status === 'published' ? 'Published' : course.status === 'archived' ? 'Archived' : 'Draft')}</span><h1>${esc(course.title)}</h1><p>${esc(course.tagline || '')}</p></div>
       <div class="page-actions"><a class="btn btn-ghost btn-sm" href="#/course/${course.id}">${icon('eye', 15)} Preview as ${t('learner', true)}</a><button class="btn btn-secondary btn-sm" data-edit-course>${icon('edit', 15)} Edit details</button>${can('courses', 'publish') ? `<button class="btn btn-primary btn-sm" data-toggle-pub>${course.status === 'published' ? 'Unpublish' : 'Publish'}</button>` : ''}</div></div>
@@ -195,7 +195,7 @@ App.route('/manage/course/:id', { perm: 'courses', render(ctx) {
     toast(next === 'published' ? `${t('course')} published.` : `${t('course')} moved to draft.`); ctx.refresh();
   });
   const pane = ctx.root.querySelector('[data-tab]');
-  ({ overview: builderOverview, sessions: builderSessions, assignments: builderAssignments, quizzes: typeof builderQuizzes === 'function' ? builderQuizzes : null, learners: builderLearners })[tab]?.(pane, course, ctx);
+  ({ overview: builderOverview, sessions: builderSessions, batches: builderBatches, learners: builderLearners })[tab]?.(pane, course, ctx);
 } });
 
 function builderOverview(pane, course, ctx) {
@@ -206,7 +206,7 @@ function builderOverview(pane, course, ctx) {
   const checks = [
     [sessions.length > 0, `At least one ${t('session', true)} scheduled`, 'sessions'],
     [sessions.some(s => s.resources?.length), 'Resources shared', 'sessions'],
-    [Domain.courseAssignments(course.id, true).length > 0, `${t('assignment')} published`, 'assignments'],
+    [db().batches.some(b => b.courseId === course.id), `${t('batch')} created (${t('assignments', true)} and ${t('quizzes', true)} are set per ${t('batch', true)})`, 'batches'],
     [!!(zoom.registerUrl || course.delivery === 'onsite'), 'Zoom details configured', null],
     [(course.outcomes || []).length > 0, 'Learning outcomes added', null],
     [learners.length > 0, `${t('learners')} enrolled`, 'learners']
@@ -319,14 +319,14 @@ function sessionModal(course, rec, done) {
   };
 }
 
-function builderAssignments(pane, course) {
-  const sessions = Domain.courseSessions(course.id, true);
+function batchAssignmentsTab(pane, batch) {
+  const course = findRecord('courses', batch.courseId), sessions = Domain.courseSessions(course.id, true);
   pane.innerHTML = `<div data-crud></div>`;
   const sub = { root: pane.querySelector('[data-crud]'), query: {} };
   crudPage(sub, {
     collection: 'assignments', title: t('assignments'), singular: t('assignment'), icon: 'clipboard', export: false,
-    subtitle: `Each ${t('assignment', true)} is linked to a ${t('session', true)} and appears in the learner's Submit page.`,
-    rows: () => Domain.courseAssignments(course.id, true), defaultSort: 'due',
+    subtitle: `Only ${t('learners', true)} in ${esc(batch.name)} receive these. Each is linked to a ${t('session', true)} of the ${t('course', true)} outline.`,
+    rows: () => Domain.batchAssignments(batch.id, true), defaultSort: 'due',
     columns: [
       { key: 'title', label: 'Title', primary: true, render: a => `<b>${esc(a.title)}</b>` },
       { key: 'session', label: t('session'), sortValue: a => sessions.findIndex(s => s.id === a.sessionId), render: a => { const i = sessions.findIndex(s => s.id === a.sessionId); return i < 0 ? '<span class="muted">—</span>' : `<span class="pill">${i + 1}</span> ${esc(sessions[i].title)}`; } },
@@ -345,17 +345,72 @@ function builderAssignments(pane, course) {
       { name: 'description', label: 'Instructions', type: 'textarea', rows: 4 }
     ],
     defaults: () => ({ status: 'Published', lateAllowed: lms().lateSubmissions !== false, maxMarks: 20 }),
-    transform: d => ({ ...d, courseId: course.id, maxMarks: Number(d.maxMarks) || 0 }),
+    transform: d => ({ ...d, courseId: course.id, batchId: batch.id, maxMarks: Number(d.maxMarks) || 0 }),
     validate: d => { if (d.maxMarks <= 0) throw new Error('Maximum marks must be greater than zero.'); },
-    afterSave: (a, isNew) => { if (isNew && a.status === 'Published') notifyMany(Domain.courseLearners(course.id).map(x => x.user.id), `New ${t('assignment', true)}: ${a.title}`, `Due ${fmtDateTime(a.dueAt)}`, 'Assignment', `#/course/${course.id}/submit?assignment=${a.id}`); },
+    afterSave: (a, isNew) => { if (isNew && a.status === 'Published') notifyMany(Domain.batchLearners(batch.id).map(x => x.user.id), `New ${t('assignment', true)}: ${a.title}`, `Due ${fmtDateTime(a.dueAt)}`, 'Assignment', `#/course/${course.id}/submit?assignment=${a.id}`); },
     beforeDelete: a => { if (db().submissions.some(s => s.assignmentId === a.id)) throw new Error('This assignment already has submissions. Set it to Draft instead of deleting.'); }
   });
 }
 
-function builderLearners(pane, course) {
+/* Course builder → Batches: each batch carries its own assignments and quizzes. */
+function builderBatches(pane, course) {
+  pane.innerHTML = `<div class="row-between mb"><p class="muted small">${t('assignments')} and ${t('quizzes', true)} belong to a ${t('batch', true)}, so learners from earlier ${t('batches', true)} never receive work set for a new one.</p>${can('batches', 'create') ? `<a class="btn btn-primary btn-sm" href="#/batches?new=1">${icon('plus', 15)} New ${t('batch', true)}</a>` : ''}</div><div class="card" data-t></div>`;
+  dataTable(pane.querySelector('[data-t]'), {
+    rows: () => db().batches.filter(b => b.courseId === course.id), search: false, defaultSort: 'start', defaultDir: 'desc',
+    columns: [
+      { key: 'name', label: t('batch'), primary: true, render: b => `<b>${esc(b.name)}</b><small class="muted block">${esc(userName(b.instructorId) || '—')}</small>` },
+      { key: 'start', label: 'Dates', sortValue: b => b.startDate || '', render: b => `${fmtDateShort(b.startDate)} – ${fmtDate(b.endDate)}` },
+      { key: 'learners', label: t('learners'), sortValue: b => Domain.batchLearners(b.id).length, render: b => Domain.batchLearners(b.id).length },
+      { key: 'work', label: `${t('assignments')} / ${t('quizzes')}`, sortable: false, render: b => `${Domain.batchAssignments(b.id, true).length} / ${Domain.batchQuizzes(b.id).length}` },
+      { key: 'status', label: 'Status', render: b => badge(b.status || 'Active') }
+    ],
+    actions: b => Domain.canManageBatch(App.user, b) ? `<a class="btn btn-secondary btn-sm" href="#/manage/batch/${b.id}">Open</a>` : '',
+    emptyTitle: `No ${t('batches', true)} yet`, emptyText: `Create a ${t('batch', true)} to set ${t('assignments', true)} and ${t('quizzes', true)}.`, emptyIcon: 'grid'
+  });
+}
+
+/* ------------------------------------------------------- Batch workspace */
+App.route('/manage/batch/:id', { perm: ['batches', 'courses'], render(ctx) {
+  const u = ctx.user, batch = findRecord('batches', ctx.params.id), course = batch && findRecord('courses', batch.courseId);
+  if (!batch || !course || !Domain.canManageBatch(u, batch)) return deniedPage(ctx, `You can't manage this ${t('batch', true)}.`);
+  const tab = ctx.query.tab || 'assignments';
+  ctx.setCrumbs([{ label: t('batches'), href: can('batches', 'view') ? '#/batches' : `#/manage/course/${course.id}?tab=batches` }, { label: batch.name }]);
+  const tabs = [['assignments', t('assignments'), 'clipboard'], ...(feature('quizzes') ? [['quizzes', t('quizzes'), 'clipboard']] : []), ['learners', t('learners'), 'users']];
+  ctx.root.innerHTML = `
+    <div class="page-head"><div><span class="eyebrow">${esc(course.title)} · ${badge(batch.status || 'Active')}</span><h1>${esc(batch.name)}</h1><p>${fmtDate(batch.startDate)} – ${fmtDate(batch.endDate)} · ${esc(userName(batch.instructorId) || 'No ' + t('instructor', true))} · ${(n => `${n} ${t(n === 1 ? 'learner' : 'learners', true)}`)(Domain.batchLearners(batch.id).length)}</p></div>
+      <div class="page-actions"><a class="btn btn-ghost btn-sm" href="#/manage/course/${course.id}?tab=sessions">${icon('layers', 15)} ${t('course')} outline</a><button class="btn btn-secondary btn-sm" data-copy>${icon('copy', 15)} Copy from another ${t('batch', true)}</button></div></div>
+    <div class="tabs" role="tablist">${tabs.map(([k, l, i]) => `<a role="tab" href="#/manage/batch/${batch.id}?tab=${k}" class="tab ${tab === k ? 'active' : ''}" aria-selected="${tab === k}">${icon(i, 16)} ${esc(l)}</a>`).join('')}</div>
+    <div data-tab></div>`;
+  const pane = ctx.root.querySelector('[data-tab]');
+  if (tab === 'quizzes' && typeof builderQuizzes === 'function') builderQuizzes(pane, batch, ctx);
+  else if (tab === 'learners') builderLearners(pane, course, batch);
+  else batchAssignmentsTab(pane, batch);
+  ctx.root.querySelector('[data-copy]').onclick = () => copyBatchWork(batch, () => ctx.refresh());
+} });
+
+// Reuse a previous batch's work: copies arrive as drafts with due dates cleared, so nothing reaches learners until reviewed.
+// Reuse earlier work: copies arrive as drafts with due dates cleared, so nothing reaches learners until reviewed.
+// "Unassigned" holds course-level items from before batches owned work that matched no running batch.
+function copyBatchWork(batch, done) {
+  const d0 = db(), others = d0.batches.filter(b => b.courseId === batch.courseId && b.id !== batch.id);
+  const loose = { assignments: d0.assignments.filter(a => a.courseId === batch.courseId && !a.batchId), quizzes: d0.quizzes.filter(q => q.courseId === batch.courseId && !q.batchId) };
+  const sources = [...others.map(b => ({ id: b.id, label: b.name, assignments: Domain.batchAssignments(b.id, true), quizzes: Domain.batchQuizzes(b.id) })),
+    ...(loose.assignments.length || loose.quizzes.length ? [{ id: '', label: 'Unassigned (from before batches)', ...loose }] : [])];
+  if (!sources.length) return toast(`Nothing to copy — no other ${t('batch', true)} of this ${t('course', true)} has work yet.`, 'warning');
+  const m = openModal({ title: `Copy into ${batch.name}`, size: 'sm', body: `<div class="field"><label class="label" for="cp-b">From</label><select id="cp-b" class="input">${sources.map((x, i) => `<option value="${i}">${esc(x.label)} — ${x.assignments.length} ${t('assignments', true)}, ${x.quizzes.length} ${t('quizzes', true)}</option>`).join('')}</select><p class="help">Copies arrive as drafts with due dates cleared. Review them, then publish.</p></div>`, footer: `<button class="btn btn-ghost" data-modal-close>Cancel</button><button class="btn btn-primary" data-ok>Copy</button>` });
+  m.querySelector('[data-ok]').onclick = () => {
+    const src = sources[Number(m.querySelector('#cp-b').value)], d = db();
+    src.assignments.forEach(a => d.assignments.push({ ...clone(a), id: uid('A'), batchId: batch.id, status: 'Draft', dueAt: '' }));
+    src.quizzes.forEach(q => d.quizzes.push({ ...clone(q), id: uid('QZ'), batchId: batch.id, status: 'draft' }));
+    const n = src.assignments.length + src.quizzes.length;
+    saveDB(d); m.close(); toast(n ? `${n} item${n === 1 ? '' : 's'} copied as drafts.` : 'Nothing to copy.'); done?.();
+  };
+}
+
+function builderLearners(pane, course, batch) {
   pane.innerHTML = `<div class="row-between mb"><p class="muted small">${t('learners')} enrolled in this ${t('course', true)}, with progress and attendance.</p>${can('enrollments', 'create') ? `<button class="btn btn-primary btn-sm" data-enroll>${icon('userPlus', 15)} Enroll ${t('learner', true)}</button>` : ''}</div><div class="card" data-t></div>`;
   const tbl = dataTable(pane.querySelector('[data-t]'), {
-    rows: () => Domain.courseLearners(course.id), searchText: x => `${x.user.name} ${x.user.email}`,
+    rows: () => batch ? Domain.batchLearners(batch.id) : Domain.courseLearners(course.id), searchText: x => `${x.user.name} ${x.user.email}`,
     columns: [
       { key: 'name', label: t('learner'), primary: true, sortValue: x => x.user.name, render: x => `<div class="person">${avatar(x.user, 30)}<div><b>${esc(x.user.name)}</b><small class="muted block">${esc(x.user.email)}</small></div></div>` },
       { key: 'batch', label: t('batch'), sortValue: x => findRecord('batches', x.enrollment.batchId)?.name || '', render: x => esc(findRecord('batches', x.enrollment.batchId)?.name || '—') },
@@ -402,6 +457,7 @@ function enrollmentModal(rec, done, presetCourse) {
     if (!r.learnerId || !r.courseId) return toast(`${t('learner')} and ${t('course', true)} are required.`, 'error');
     if (db().enrollments.some(e => e.learnerId === r.learnerId && e.courseId === r.courseId && e.id !== rec?.id)) return toast(`This ${t('learner', true)} is already enrolled in the ${t('course', true)}.`, 'error');
     if (r.accessMode === 'restricted' && !r.allowedSessionIds.length) return toast(`Choose at least one ${t('session', true)} for restricted access.`, 'error');
+    if (!r.batchId && db().batches.some(b => b.courseId === r.courseId)) return toast(`Choose a ${t('batch', true)} — ${t('assignments', true)} and ${t('quizzes', true)} are set per ${t('batch', true)}.`, 'error');
     const batch = findRecord('batches', r.batchId);
     if (batch && !rec && batch.capacity && db().enrollments.filter(e => e.batchId === batch.id && e.status === 'Active').length >= Number(batch.capacity)) return toast(`${batch.name} is full (${batch.capacity}).`, 'error');
     const createFee = r.createFee; delete r.createFee;
@@ -506,6 +562,7 @@ App.route('/batches', { perm: 'batches', render(ctx) {
   ctx.setCrumbs([{ label: t('batches') }]);
   crudPage(ctx, {
     collection: 'batches', perm: 'batches', title: t('batches'), singular: t('batch'), icon: 'grid',
+    rowActions: b => Domain.canManageBatch(App.user, b) ? `<a class="btn btn-ghost btn-sm" href="#/manage/batch/${b.id}">Open</a>` : '',
     subtitle: `Cohorts or sections of a ${t('course', true)} with their own ${t('instructor', true)}, venue and capacity.`,
     columns: [
       { key: 'name', label: 'Name', primary: true, render: b => `<b>${esc(b.name)}</b><small class="muted block">${esc(courseTitle(b.courseId))}</small>` },
@@ -533,7 +590,9 @@ App.route('/batches', { perm: 'batches', render(ctx) {
       return { ...b, name: keyChanged ? batchName(b.courseId, b.delivery, b.startDate, rec?.id) : rec.name };
     },
     validate: b => { if (b.startDate && b.endDate && b.endDate < b.startDate) throw new Error('End date must be after the start date.'); },
-    beforeDelete: b => { if (db().enrollments.some(e => e.batchId === b.id)) throw new Error(`Move enrolled ${t('learners', true)} to another ${t('batch', true)} first.`); }
+    beforeDelete: b => { if (db().enrollments.some(e => e.batchId === b.id)) throw new Error(`Move enrolled ${t('learners', true)} to another ${t('batch', true)} first.`); },
+    // The batch owns its assignments and quizzes, so they go with it.
+    afterDelete: b => { const d = db(); const qz = new Set(d.quizzes.filter(q => q.batchId === b.id).map(q => q.id)); d.assignments = d.assignments.filter(a => a.batchId !== b.id); d.quizzes = d.quizzes.filter(q => !qz.has(q.id)); d.quizAttempts = d.quizAttempts.filter(x => !qz.has(x.quizId)); saveDB(d); }
   });
 } });
 

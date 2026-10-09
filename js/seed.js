@@ -161,11 +161,12 @@ const SEED = (() => {
   ];
 
   const assignments = [
-    { id: 'A-EX-1', courseId: 'C-EXCEL', sessionId: 'S-EX-3', title: 'Pivot analysis of regional sales', description: 'Use the regional sales dataset to build a PivotTable report answering the five questions in the brief. Include at least one PivotChart and one slicer.', dueAt: DT(4), maxMarks: 20, lateAllowed: true, status: 'Published' },
-    { id: 'A-EX-2', courseId: 'C-EXCEL', sessionId: 'S-EX-6', title: 'Executive sales dashboard', description: 'Design a one-page interactive dashboard with at least four KPIs and two interactive controls.', dueAt: DT(18), maxMarks: 30, lateAllowed: true, status: 'Published' },
-    { id: 'A-TB-1', courseId: 'C-TABLEAU', sessionId: 'S-TB-3', title: 'Superstore sales story', description: 'Build a workbook with three views and one calculated field explaining regional profitability. Submit the packaged workbook (.twbx) or a PDF export.', dueAt: DT(-2), maxMarks: 25, lateAllowed: true, status: 'Published' },
-    { id: 'A-SC-1', courseId: 'C-SCM', sessionId: 'S-SC-2', title: 'Supply chain map of a local company', description: 'Map the supply chain of a Pakistani company of your choice and identify three improvement opportunities.', dueAt: DT(20), maxMarks: 20, lateAllowed: false, status: 'Published' },
-    { id: 'A-PB-1', courseId: 'C-PBI', sessionId: 'S-PB-2', title: 'Workshop report', description: 'Publish your workshop report and submit the .pbix file.', dueAt: DT(-40), maxMarks: 20, lateAllowed: true, status: 'Published' }
+    { id: 'A-EX-1', courseId: 'C-EXCEL', batchId: 'B-EX-1', sessionId: 'S-EX-3', title: 'Pivot analysis of regional sales', description: 'Use the regional sales dataset to build a PivotTable report answering the five questions in the brief. Include at least one PivotChart and one slicer.', dueAt: DT(4), maxMarks: 20, lateAllowed: true, status: 'Published' },
+    { id: 'A-EX-2', courseId: 'C-EXCEL', batchId: 'B-EX-1', sessionId: 'S-EX-6', title: 'Executive sales dashboard', description: 'Design a one-page interactive dashboard with at least four KPIs and two interactive controls.', dueAt: DT(18), maxMarks: 30, lateAllowed: true, status: 'Published' },
+    { id: 'A-EX-W1', courseId: 'C-EXCEL', batchId: 'B-EX-2', sessionId: 'S-EX-3', title: 'Weekend lab: clean a sales export', description: 'Clean the raw sales export (remove duplicates, fix data types, split columns) and submit the tidy workbook.', dueAt: DT(12), maxMarks: 20, lateAllowed: true, status: 'Published' },
+    { id: 'A-TB-1', courseId: 'C-TABLEAU', batchId: 'B-TB-1', sessionId: 'S-TB-3', title: 'Superstore sales story', description: 'Build a workbook with three views and one calculated field explaining regional profitability. Submit the packaged workbook (.twbx) or a PDF export.', dueAt: DT(-2), maxMarks: 25, lateAllowed: true, status: 'Published' },
+    { id: 'A-SC-1', courseId: 'C-SCM', batchId: 'B-SC-1', sessionId: 'S-SC-2', title: 'Supply chain map of a local company', description: 'Map the supply chain of a Pakistani company of your choice and identify three improvement opportunities.', dueAt: DT(20), maxMarks: 20, lateAllowed: false, status: 'Published' },
+    { id: 'A-PB-1', courseId: 'C-PBI', batchId: 'B-PB-1', sessionId: 'S-PB-2', title: 'Workshop report', description: 'Publish your workshop report and submit the .pbix file.', dueAt: DT(-40), maxMarks: 20, lateAllowed: true, status: 'Published' }
   ];
 
   const batches = [
@@ -259,7 +260,7 @@ const SEED = (() => {
       { id: 'QQ-3', bankId: 'QB-EXCEL', courseId: 'C-EXCEL', type: 'short', stem: 'Name one Power Query step you would use to split a “City, Country” column into two columns.', modelAnswer: 'Split Column by Delimiter (comma)', keywords: ['split', 'delimiter'], points: 2, difficulty: 'medium', tags: ['power-query'] }
     ],
     quizzes: [
-      { id: 'QZ-EX-1', courseId: 'C-EXCEL', sessionId: 'S-EX-2', title: 'Module 1 check-in', description: 'Short graded check on tables and lookups.', questionIds: ['QQ-1', 'QQ-2', 'QQ-3'], timeLimitSec: 0, attemptLimit: 2, shuffle: false, status: 'published', passPercent: 50 }
+      { id: 'QZ-EX-1', courseId: 'C-EXCEL', batchId: 'B-EX-1', sessionId: 'S-EX-2', title: 'Module 1 check-in', description: 'Short graded check on tables and lookups.', questionIds: ['QQ-1', 'QQ-2', 'QQ-3'], timeLimitSec: 0, attemptLimit: 2, shuffle: false, status: 'published', passPercent: 50 }
     ],
     quizAttempts: [],
     practiceAttempts: [],

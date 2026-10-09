@@ -28,14 +28,13 @@ function seedState() {
   SEED.users.forEach(u => { if (u.password) { u.salt = crypto.randomBytes(8).toString('hex'); u.passwordHash = hashPassword(u.password, u.salt); delete u.password; } });
   return SEED;
 }
-// Same one-time upgrade as normalizeState in js/core.js, applied here because only the server may change roles.
+// Same one-time upgrades as normalizeState in js/core.js, applied here because only the server may change roles.
+const { migrateState } = require('../js/migrations.js');
 let seedRoles;
 function migrate(state) {
-  if ((state.schema || 1) >= 2) return state;
+  if ((state.schema || 1) >= 3) return state;
   seedRoles ||= vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'seed.js'), 'utf8') + ';SEED.roles', {});
-  (state.roles || []).forEach(r => { const s = seedRoles.find(x => x.id === r.id); if (!s || !r.permissions) return; ['ai', 'quizzes'].forEach(m => { if (!r.permissions[m] && s.permissions?.[m]) r.permissions[m] = [...s.permissions[m]]; }); });
-  state.schema = 2;
-  return state;
+  return migrateState(state, seedRoles);
 }
 async function load() {
   const row = await rpc('sdc_state_get', {});

@@ -4,7 +4,7 @@ const t = require('../backend/state-api.js')._test;
 const js = f => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8');
 const ctx = { localStorage: { getItem: () => null, setItem() {} }, sessionStorage: { getItem: () => null }, document: { querySelector: () => null }, location: {}, crypto: { getRandomValues: a => a } };
 ctx.window = ctx; ctx.addEventListener = () => {}; vm.createContext(ctx);
-vm.runInContext(js('seed.js') + ';' + js('core.js') + ';globalThis.__h=hashPassword', ctx);
+vm.runInContext(js('seed.js') + ';' + js('migrations.js') + ';' + js('core.js') + ';globalThis.__h=hashPassword', ctx);
 assert.equal(t.hashPassword('Demo@123', 'ab12'), ctx.__h('Demo@123', 'ab12'), 'server hash = browser hash');
 assert.equal(t.hashPassword('pässwörd', 'x'), ctx.__h('pässwörd', 'x'), 'unicode passwords hash the same');
 

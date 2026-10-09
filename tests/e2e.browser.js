@@ -63,14 +63,26 @@
     await click(`[data-move="${ss[0].id}:1"]`); check(Domain.courseSessions(cid, true)[1].id === ss[0].id, 'not reordered');
     await click(`[data-del="${ss[1].id}"]`); await confirmYes(); check(Domain.courseSessions(cid, true).length === 1, 'not deleted');
   });
-  await step('Assignments: create, edit', async () => {
-    await go(`#/manage/course/${cid}?tab=assignments`); await click('[data-tab] [data-add]');
+  await step('Assignments: created in a batch workspace, edit', async () => {
+    const qb = addRecord('batches', { courseId: cid, name: 'QA Batch', status: 'Active' });
+    await go(`#/manage/course/${cid}?tab=batches`); check($(`a[href="#/manage/batch/${qb.id}"]`), 'batch not listed in course builder');
+    check(!$$('.tabs a').some(a => /Assignments|Quizzes/.test(a.innerText)), 'course builder still has assignment/quiz tabs');
+    await go(`#/manage/batch/${qb.id}?tab=assignments`); await click('[data-tab] [data-add]');
     fill('title', 'QA Assignment'); fill('sessionId', Domain.courseSessions(cid, true)[0].id); fill('dueAt', '2026-12-30T23:59'); fill('maxMarks', '10'); await save();
-    const a = fresh().assignments.find(x => x.title === 'QA Assignment'); check(a?.courseId === cid, 'not created');
+    const a = fresh().assignments.find(x => x.title === 'QA Assignment'); check(a?.courseId === cid && a.batchId === qb.id, 'not created in the batch');
     await click(`[data-edit="${a.id}"]`); fill('maxMarks', '15'); await save(); check(findRecord('assignments', a.id).maxMarks === 15, 'not edited');
   });
+  await step('Batches: new work reaches only that batch, never completed or other batches', async () => {
+    const b2 = fresh().batches.find(b => b.id === 'B-EX-2'), mk = addRecord('assignments', { courseId: 'C-EXCEL', batchId: 'B-EX-2', sessionId: 'S-EX-2', title: 'QA weekend only', dueAt: '2027-01-01T23:59', maxMarks: 10, status: 'Published' });
+    check(Domain.learnerAssignments('u-usman', 'C-EXCEL').some(a => a.id === mk.id), 'weekend learner missing new work');
+    check(!Domain.learnerAssignments('u-ali', 'C-EXCEL').some(a => a.id === mk.id) && !Domain.learnerAssignments('u-mariam', 'C-EXCEL').some(a => a.id === mk.id), 'other batch received the new work');
+    const pb = addRecord('assignments', { courseId: 'C-PBI', batchId: 'B-PB-2-NEW', sessionId: 'S-PB-1', title: 'QA next workshop', dueAt: '2027-01-01T23:59', maxMarks: 10, status: 'Published' });
+    check(!Domain.learnerAssignments('u-ali', 'C-PBI').some(a => a.id === pb.id), 'completed learner received work for a new batch');
+    await as('u-ali'); await go('#/assignments'); check(!/QA weekend only|QA next workshop/.test(document.querySelector('#main').innerText), 'learner page lists other batches\' work');
+    await as('u-admin'); deleteRecord('assignments', mk.id); deleteRecord('assignments', pb.id);
+  });
   await step('Enrollments: restricted enroll, duplicate blocked, edit, remove', async () => {
-    await go('#/enrollments'); await click('[data-add]'); fill('learnerId', 'u-zara'); fill('courseId', cid); fill('accessMode', 'restricted');
+    await go('#/enrollments'); await click('[data-add]'); fill('learnerId', 'u-zara'); fill('courseId', cid); fill('accessMode', 'restricted'); await save(); check(/Choose a/.test($$('.toast').map(t => t.innerText).join(' ')), 'enrolled without a batch'); fill('batchId', fresh().batches.find(b => b.courseId === cid).id);
     modal().querySelector('[data-multi="allowedSessionIds"] input').checked = true; await save();
     const e = Domain.enrollment('u-zara', cid); check(e?.accessMode === 'restricted' && e.allowedSessionIds.length === 1, 'not enrolled');
     await click('[data-add]'); fill('learnerId', 'u-zara'); fill('courseId', cid); await save(); check(modal(), 'duplicate allowed'); $$('.modal-backdrop').forEach(m => m.remove());

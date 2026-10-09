@@ -10,8 +10,8 @@ const ctx = {
 };
 ctx.window = ctx; ctx.window.addEventListener = () => {}; ctx.window.dispatchEvent = () => {};
 vm.createContext(ctx);
-const src = ['seed.js', 'core.js'].map(f => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8')).join(';\n');
-vm.runInContext(src + ';globalThis.__x={db,can,kind,Domain,verifyPassword,addRecord,findRecord,endDateFor}', ctx, { filename: 'core-bundle.js' });
+const src = ['seed.js', 'migrations.js', 'core.js'].map(f => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8')).join(';\n');
+vm.runInContext(src + ';globalThis.migrateState=migrateState;globalThis.__x={db,can,kind,Domain,verifyPassword,addRecord,findRecord,endDateFor}', ctx, { filename: 'core-bundle.js' });
 const { db, can, kind, Domain, verifyPassword, addRecord, findRecord, endDateFor } = ctx.__x;
 const u = id => findRecord('users', id);
 
@@ -47,4 +47,14 @@ assert.ok(db().users.every(x => !x.password), 'no plaintext passwords stored');
 assert.equal(endDateFor('2026-01-01', '3 months'), '2026-03-31'); assert.equal(endDateFor('2026-10-10', '1–2 days'), '2026-10-11'); assert.equal(endDateFor('2026-01-01', 'TBD'), '');
 const future = addRecord('sessions', { courseId: 'C-EXCEL', title: 'F', date: '2999-01-01', published: true });
 assert.equal(Domain.setSessionComplete('u-ali', 'C-EXCEL', future.id, true), false, 'future session cannot be completed');
+// Schema 3: course-level work moves to batches; each learner keeps their own submission and sees only their batch.
+const old3 = { schema: 2, batches: [{ id: 'B1', courseId: 'C' }, { id: 'B2', courseId: 'C' }], enrollments: [{ learnerId: 'L1', courseId: 'C', batchId: 'B1' }, { learnerId: 'L2', courseId: 'C', batchId: 'B2' }],
+  assignments: [{ id: 'A', courseId: 'C' }], submissions: [{ assignmentId: 'A', learnerId: 'L1' }, { assignmentId: 'A', learnerId: 'L2' }], quizzes: [{ id: 'Q', courseId: 'C' }], quizAttempts: [{ quizId: 'Q', learnerId: 'L2' }] };
+ctx.migrateState(old3, []); ctx.migrateState({ ...old3, schema: 2 }, []);
+assert.deepEqual(old3.assignments.map(a => a.id + ':' + a.batchId), ['A:B1', 'A-B2:B2'], 'one copy per batch, idempotent');
+assert.deepEqual(old3.submissions.map(s => s.assignmentId), ['A', 'A-B2'], 'submissions follow the learner batch');
+assert.equal(old3.quizAttempts[0].quizId, 'Q-B2'); assert.equal(old3.schema, 3);
+// Learners see only their own batch's work: Usman (weekend batch) never gets the evening batch's assignments.
+assert.deepEqual(Domain.learnerAssignments('u-usman', 'C-EXCEL').map(a => a.id), ['A-EX-W1']);
+assert.ok(!Domain.learnerAssignments('u-ali', 'C-EXCEL').some(a => a.id === 'A-EX-W1'), 'evening learner does not see weekend work');
 console.log('core.test.js: all checks passed');
