@@ -88,7 +88,7 @@ App.route('/manage/courses', { perm: 'courses', render(ctx) {
         <h3><a href="#/manage/course/${c.id}">${esc(c.title)}</a></h3>
         <p class="cc-tagline">${esc(c.tagline || '')}</p>
         <div class="cc-meta"><span>${icon('layers', 14)} ${ss.length} ${t('sessions', true)}</span><span>${icon('users', 14)} ${learners} ${t('learners', true)}</span>${pend ? `<span class="text-warning">${icon('clipboard', 14)} ${pend} to grade</span>` : ''}</div>
-        <div class="cc-foot small muted">${icon('user', 14)} ${esc((c.instructorIds || []).map(userName).join(', ') || 'No instructor')} · ${fmtDateShort(c.startDate)} – ${fmtDateShort(c.endDate)}</div>
+        <div class="cc-foot small muted">${icon('user', 14)} ${esc(Domain.courseInstructors(c.id).map(i => i.name).join(', ') || 'No instructor')} · ${fmtDateShort(c.startDate)} – ${fmtDateShort(c.endDate)}</div>
         <div class="cc-actions">${Domain.canManageCourse(u, c) ? `<a class="btn btn-primary btn-sm" href="#/manage/course/${c.id}">${icon('settings', 15)} Manage</a>` : ''}<a class="btn btn-ghost btn-sm" href="#/course/${c.id}">${icon('eye', 15)} Preview</a>${can('courses', 'delete') ? `<button class="icon-btn icon-btn-sm danger" data-del="${c.id}" aria-label="Delete course">${icon('trash', 15)}</button>` : ''}</div>
       </article>`;
     }).join('') : `<div class="span-all">${emptyState(`No ${t('courses', true)} found`, isAdmin ? `Create your first ${t('course', true)} to get started.` : `You haven't been assigned any ${t('courses', true)} yet.`, 'book')}</div>`;
@@ -122,7 +122,6 @@ function courseFields(isAdmin) {
     { name: 'level', label: 'Level', type: 'select', options: opt.levels },
     { name: 'delivery', label: 'Delivery', type: 'select', options: opt.delivery, required: true, placeholderOption: false },
     { name: 'status', label: 'Status', type: 'select', options: [{ value: 'draft', label: 'Draft' }, { value: 'published', label: 'Published' }, { value: 'archived', label: 'Archived' }], placeholderOption: false, hidden: !can('courses', 'publish') },
-    { name: 'instructorIds', label: t('instructors'), type: 'multiselect', options: opt.instructors, hidden: !isAdmin },
     { name: 'startDate', label: 'Start date', type: 'date' },
     { name: 'endDate', label: 'End date', type: 'date', help: 'Filled from the start date and the program duration; you can still change it.' },
     { name: 'schedule', label: 'Schedule', placeholder: 'e.g. Mondays 7–9 PM (PKT)' },
@@ -166,11 +165,15 @@ function courseModal(rec, onSaved) {
       zoom: { registerUrl: r.zoomRegisterUrl, meetingId: r.zoomMeetingId, password: r.zoomPassword }
     };
     ['zoomRegisterUrl', 'zoomMeetingId', 'zoomPassword'].forEach(k => delete data[k]);
-    if (!isAdmin) ['programId', 'divisionId', 'instructorIds', 'fee'].forEach(k => delete data[k]);
+    if (!isAdmin) ['programId', 'divisionId', 'fee'].forEach(k => delete data[k]);
     if (!can('courses', 'publish')) delete data.status;
     if (!rec && !can('courses', 'publish')) data.status = 'draft';
-    if (!rec && !isAdmin) data.instructorIds = [App.user.id];
+    delete data.instructorIds;
     const saved = rec ? updateRecord('courses', rec.id, data) : addRecord('courses', { ...data, id: uid('C') });
+    if (!rec && !isAdmin) addRecord('batches', {
+      courseId: saved.id, name: batchName(saved.id, saved.delivery, saved.startDate), instructorId: App.user.id,
+      startDate: saved.startDate, endDate: saved.endDate, delivery: saved.delivery, venue: saved.venue, capacity: 30, status: 'Active'
+    });
     m.close(); toast(rec ? `${t('course')} updated.` : `${t('course')} created.`); onSaved?.(saved);
   };
 }
@@ -203,10 +206,12 @@ function builderOverview(pane, course, ctx) {
   const avgProg = learners.length ? Math.round(sum(learners, x => Domain.progress(x.user.id, course.id).percent) / learners.length) : 0;
   const pend = db().submissions.filter(s => s.courseId === course.id && ['Submitted', 'Late'].includes(s.status)).length;
   const zoom = course.zoom || {};
+  const batches = Domain.courseBatches(course.id);
+  const taught = batches.filter(b => b.instructorId);
   const checks = [
     [sessions.length > 0, `At least one ${t('session', true)} scheduled`, 'sessions'],
     [sessions.some(s => s.resources?.length), 'Resources shared', 'sessions'],
-    [db().batches.some(b => b.courseId === course.id), `${t('batch')} created (${t('assignments', true)} and ${t('quizzes', true)} are set per ${t('batch', true)})`, 'batches'],
+    [batches.length > 0, `${t('batch')} created (${t('assignments', true)} and ${t('quizzes', true)} are set per ${t('batch', true)})`, 'batches'],
     [!!(zoom.registerUrl || course.delivery === 'onsite'), 'Zoom details configured', null],
     [(course.outcomes || []).length > 0, 'Learning outcomes added', null],
     [learners.length > 0, `${t('learners')} enrolled`, 'learners']
@@ -218,9 +223,12 @@ function builderOverview(pane, course, ctx) {
         <div><dt>Program type</dt><dd>${esc(pairLabel(lms().programTypes, course.programType))}</dd></div><div><dt>${t('program')}</dt><dd>${esc(findRecord('programs', course.programId)?.name || '—')}</dd></div>
         <div><dt>Delivery</dt><dd>${esc(pairLabel(lms().deliveryModes, course.delivery))}</dd></div><div><dt>Level</dt><dd>${esc(course.level || '—')}</dd></div>
         <div><dt>Dates</dt><dd>${fmtDate(course.startDate)} – ${fmtDate(course.endDate)}</dd></div><div><dt>Schedule</dt><dd>${esc(course.schedule || '—')}</dd></div>
-        <div><dt>${t('instructors')}</dt><dd>${esc((course.instructorIds || []).map(userName).join(', ') || '—')}</dd></div><div><dt>${t('fee')}</dt><dd>${course.fee ? fmtMoney(course.fee) : '—'}</dd></div>
-        <div><dt>Help URL</dt><dd class="truncate">${esc(course.helpUrl || 'Platform default')}</dd></div><div><dt>Zoom</dt><dd>${zoom.meetingId ? esc(zoom.meetingId) : zoom.registerUrl ? 'Link configured' : '—'}</dd></div>
+        <div><dt>${t('fee')}</dt><dd>${course.fee ? fmtMoney(course.fee) : '—'}</dd></div><div><dt>Help URL</dt><dd class="truncate">${esc(course.helpUrl || 'Platform default')}</dd></div>
+        <div><dt>Zoom</dt><dd>${zoom.meetingId ? esc(zoom.meetingId) : zoom.registerUrl ? 'Link configured' : '—'}</dd></div>
       </dl></div>
+      <div class="card"><div class="card-head"><h3>${t('instructors')}</h3>${can('batches', 'view') ? `<a class="small" href="#/manage/course/${course.id}?tab=batches">${t('batches')}</a>` : ''}</div>
+        ${taught.length ? taught.map(b => { const i = findRecord('users', b.instructorId); return `<div class="person mb">${avatar(i, 44)}<div><b>${esc(i?.name || '—')}</b><small class="muted">${esc(i?.designation || t('instructor'))}</small><small class="muted block">${esc(b.name)}</small></div></div>`; }).join('') : emptyState(`No ${t('instructors', true)} yet`, `Assign an ${t('instructor', true)} when you create a ${t('batch', true)}.`, 'users')}
+      </div>
       <div class="card"><h3>Launch checklist</h3><ul class="checklist">${checks.map(([ok, label, tab]) => `<li class="${ok ? 'ok' : ''}">${icon(ok ? 'check' : 'x', 15)}<span>${esc(label)}</span>${!ok && tab ? `<a class="small" href="#/manage/course/${course.id}?tab=${tab}">Fix</a>` : ''}</li>`).join('')}</ul></div>
     </div>`;
 }

@@ -32,7 +32,7 @@ function seedState() {
 const { migrateState } = require('../js/migrations.js');
 let seedRoles;
 function migrate(state) {
-  if ((state.schema || 1) >= 3) return state;
+  if ((state.schema || 1) >= 4) return state;
   seedRoles ||= vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'seed.js'), 'utf8') + ';SEED.roles', {});
   return migrateState(state, seedRoles);
 }

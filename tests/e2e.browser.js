@@ -46,9 +46,9 @@
   let cid;
   await step('Courses: create, publish, edit details', async () => {
     await go('#/manage/courses?new=1'); fill('title', 'QA Course'); fill('startDate', '2026-11-01'); fill('endDate', '2026-12-01');
-    modal().querySelector('[data-multi="instructorIds"] input[value="u-faraz"]').checked = true; await save(); await W(150);
+    check(!modal().querySelector('[data-multi="instructorIds"]'), 'course form still asks for instructors (they belong to batches)'); await save(); await W(150);
     cid = location.hash.split('/')[3].split('?')[0]; const c = findRecord('courses', cid); check(c?.title === 'QA Course', 'not created');
-    check(c.instructorIds.includes('u-faraz'), 'instructor not assigned');
+    check(!c.instructorIds, 'course still stores instructors');
     await click('[data-toggle-pub]'); check(findRecord('courses', cid).status === 'published', 'not published');
     await click('[data-edit-course]'); fill('tagline', 'QA tagline'); fill('zoomMeetingId', '111 222'); await save(); check(findRecord('courses', cid).zoom.meetingId === '111 222', 'zoom not saved');
   });

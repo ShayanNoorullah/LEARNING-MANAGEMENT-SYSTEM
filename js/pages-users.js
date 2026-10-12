@@ -60,7 +60,7 @@ function userPage(ctx, base) {
     deleteMessage: u => `Delete ${u.name}'s account? Their enrollments, progress, submissions and attendance are removed. Consider setting the status to Inactive instead.`,
     // Fee records are financial history, so an account that has them is deactivated rather than deleted.
     beforeDelete: u => { if (u.id === ctx.user.id) throw new Error('You cannot delete your own account.'); if (db().fees.some(f => f.learnerId === u.id)) throw new Error(`${u.name} has ${t('fee', true)} records. Set the status to Inactive instead of deleting.`); },
-    afterDelete: u => { const d = db(); ['enrollments', 'progress', 'submissions', 'attendance', 'results', 'certificates', 'feedback'].forEach(k => d[k] = d[k].filter(x => x.learnerId !== u.id)); d.notifications = d.notifications.filter(n => n.userId !== u.id); d.messages = d.messages.filter(m => m.from !== u.id && m.to !== u.id); d.batches.forEach(b => { if (b.instructorId === u.id) b.instructorId = ''; }); d.courses.forEach(c => { c.instructorIds = (c.instructorIds || []).filter(id => id !== u.id); }); saveDB(d); }
+    afterDelete: u => { const d = db(); ['enrollments', 'progress', 'submissions', 'attendance', 'results', 'certificates', 'feedback'].forEach(k => d[k] = d[k].filter(x => x.learnerId !== u.id)); d.notifications = d.notifications.filter(n => n.userId !== u.id); d.messages = d.messages.filter(m => m.from !== u.id && m.to !== u.id); d.batches.forEach(b => { if (b.instructorId === u.id) b.instructorId = ''; }); saveDB(d); }
   });
 }
 App.route('/learners', { perm: 'learners', render: ctx => userPage(ctx, 'student') });

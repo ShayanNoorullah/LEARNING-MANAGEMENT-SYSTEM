@@ -458,7 +458,7 @@ function messageRecipients(u) {
   const users = db().users.filter(x => x.id !== u.id && x.status === 'Active');
   if (scopeAll(u)) return users;
   if (kind(u) !== 'student') { const ids = Domain.scopedLearnerIds(u); return users.filter(x => kind(x) !== 'student' || ids.includes(x.id)); }
-  const instr = new Set(Domain.visibleCourses(u).flatMap(c => c.instructorIds || []));
+  const instr = new Set(Domain.visibleCourses(u).flatMap(c => Domain.courseInstructorIds(c.id)));
   return users.filter(x => kind(x) === 'admin' || instr.has(x.id));
 }
 App.route('/messages', { perm: 'messages', feature: 'messages', render(ctx) {

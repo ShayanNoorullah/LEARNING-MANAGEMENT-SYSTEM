@@ -34,7 +34,24 @@ function migrateState(state, seedRoles) {
     spread(state.assignments || [], state.submissions || [], 'assignmentId');
     spread(state.quizzes || [], state.quizAttempts || [], 'quizId');
   }
-  state.schema = 3;
+  // 4 · Instructors belong on the batch (`instructorId`), not on the course.
+  //     Each course instructor keeps access: they fill a batch of that course with no instructor, or — when
+  //     the course has no batch for them — get one (deterministic id, so running twice is harmless).
+  if (v < 4) {
+    state.batches = state.batches || [];
+    (state.courses || []).forEach(c => {
+      (c.instructorIds || []).forEach((uid, i) => {
+        const mine = state.batches.filter(b => b.courseId === c.id);
+        if (mine.some(b => b.instructorId === uid)) return;
+        const open = mine.find(b => !b.instructorId);
+        if (open) { open.instructorId = uid; return; }
+        const id = `${c.id}-B${i + 1}`;
+        if (!state.batches.some(b => b.id === id)) state.batches.push({ id, courseId: c.id, name: `${c.title} — ${i + 1}`, instructorId: uid, startDate: c.startDate || '', endDate: c.endDate || '', delivery: c.delivery || 'online', venue: c.venue || '', capacity: 30, status: 'Active' });
+      });
+      delete c.instructorIds;
+    });
+  }
+  state.schema = 4;
   return state;
 }
 if (typeof module !== 'undefined') module.exports = { migrateState };
