@@ -34,7 +34,11 @@ function migrateState(state, seedRoles) {
     spread(state.assignments || [], state.submissions || [], 'assignmentId');
     spread(state.quizzes || [], state.quizAttempts || [], 'quizId');
   }
-  state.schema = 3;
+  // 4 · Instructors belong on the batch (`instructorId`), not on the course.
+  if (v < 4) {
+    (state.courses || []).forEach(c => { delete c.instructorIds; });
+  }
+  state.schema = 4;
   return state;
 }
 if (typeof module !== 'undefined') module.exports = { migrateState };

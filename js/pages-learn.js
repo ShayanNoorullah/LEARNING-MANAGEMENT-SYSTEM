@@ -153,7 +153,7 @@ App.route('/course/:id', { perm: ['learn', 'courses'], render(ctx) {
   courseTools(ctx, course);
   const sessions = Domain.courseSessions(course.id), prog = isLearner ? Domain.progress(u.id, course.id) : null;
   const assignments = Domain.assignmentsFor(u, course.id);
-  const instructors = (course.instructorIds || []).map(id => findRecord('users', id)).filter(Boolean);
+  const instructors = Domain.courseInstructors(course.id, enrollment?.batchId);
   const resumeId = prog?.lastSessionId && sessions.some(s => s.id === prog.lastSessionId) ? prog.lastSessionId : (sessions.find(s => !prog?.completed.includes(s.id) && Domain.sessionUnlocked(s, enrollment)) || sessions[0])?.id;
   const next = Domain.nextSession(course.id);
   const anns = Domain.announcementsFor(u).filter(a => a.audience === 'course' && a.courseId === course.id).slice(0, 2);
@@ -294,7 +294,7 @@ App.route('/course/:id/outline', { perm: ['learn', 'courses'], render(ctx) {
   const u = ctx.user, sessions = Domain.courseSessions(course.id), prog = kind(u) === 'student' ? Domain.progress(u.id, course.id) : null;
   const modules = (course.modules?.length ? course.modules : [...new Set(sessions.map(s => s.moduleName || 'Sessions'))].map(name => ({ name, summary: '' })));
   const extra = [...new Set(sessions.map(s => s.moduleName || 'Sessions'))].filter(n => !modules.some(m => m.name === n)).map(name => ({ name, summary: '' }));
-  const instructors = (course.instructorIds || []).map(id => findRecord('users', id)).filter(Boolean);
+  const instructors = Domain.courseInstructors(course.id, enrollment?.batchId);
   ctx.root.innerHTML = `
     ${pageHead('Course Outline', esc(course.title), `<button class="btn btn-ghost btn-sm" data-print>${icon('printer', 15)} Print</button>`)}
     <div class="layout-aside">
@@ -383,7 +383,7 @@ App.route('/course/:id/submit', { perm: 'learn', base: 'student', render(ctx) {
       const payload = { assignmentId: a.id, sessionId: a.sessionId, courseId: course.id, learnerId: u.id, email: u.email, fileName: up.fileName, fileUrl: up.url, size: up.size, stored: up.stored, uploadedAt: new Date().toISOString(), status: late ? 'Late' : 'Submitted', grade: null, feedback: '' };
       if (existing) updateRecord('submissions', existing.id, { ...payload, history: [...(existing.history || []), { fileName: existing.fileName, fileUrl: existing.fileUrl, uploadedAt: existing.uploadedAt }] });
       else addRecord('submissions', { ...payload, history: [] });
-      notifyMany(course.instructorIds || [], existing ? 'Submission replaced' : 'New submission', `${u.name} ${existing ? 'replaced' : 'submitted'} "${a.title}".`, 'Submission', '#/submissions');
+      notifyMany(Domain.courseInstructorIds(course.id, a.batchId), existing ? 'Submission replaced' : 'New submission', `${u.name} ${existing ? 'replaced' : 'submitted'} "${a.title}".`, 'Submission', '#/submissions');
       notify(u.id, 'Submission received', `"${a.title}" — ${up.fileName}`, 'Submission', `#/course/${course.id}/submit?assignment=${a.id}`);
       ctx.root.innerHTML = `${pageHead('Submission received', esc(course.title))}
         <div class="card success-card"><span class="success-icon">${icon('check', 26)}</span><h2>${existing ? 'Your submission was replaced' : 'Your work has been submitted'}</h2>

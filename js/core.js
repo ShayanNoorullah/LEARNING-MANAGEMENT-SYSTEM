@@ -360,7 +360,13 @@ const Domain = {
   batchLearners(batchId) { return db().enrollments.filter(e => e.batchId === batchId && e.status !== 'Withdrawn').map(e => ({ enrollment: e, user: findRecord('users', e.learnerId) })).filter(x => x.user); },
   canManageBatch(user, batch) { const c = batch && findRecord('courses', batch.courseId); return !!c && (Domain.canManageCourse(user, c) || (batch.instructorId === user?.id && can('courses', 'edit', user))); },
   courseLearners(courseId) { return db().enrollments.filter(e => e.courseId === courseId && e.status !== 'Withdrawn').map(e => ({ enrollment: e, user: findRecord('users', e.learnerId) })).filter(x => x.user); },
-  instructorCourses(userId) { return db().courses.filter(c => (c.instructorIds || []).includes(userId)); },
+  courseBatches(courseId) { return db().batches.filter(b => b.courseId === courseId); },
+  courseInstructorIds(courseId, batchId) {
+    if (batchId) { const id = findRecord('batches', batchId)?.instructorId; return id ? [id] : Domain.courseInstructorIds(courseId); }
+    return [...new Set(Domain.courseBatches(courseId).map(b => b.instructorId).filter(Boolean))];
+  },
+  courseInstructors(courseId, batchId) { return Domain.courseInstructorIds(courseId, batchId).map(id => findRecord('users', id)).filter(Boolean); },
+  instructorCourses(userId) { const ids = new Set(db().batches.filter(b => b.instructorId === userId).map(b => b.courseId)); return db().courses.filter(c => ids.has(c.id)); },
   visibleCourses(user) {
     const r = roleOf(user), all = db().courses;
     switch (r.courseScope) {

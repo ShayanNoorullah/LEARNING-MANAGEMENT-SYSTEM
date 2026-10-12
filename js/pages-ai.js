@@ -35,7 +35,7 @@ function openTutorDrawer(course, session) {
         chat.querySelectorAll('[data-rate]').forEach(b => b.onclick = () => toast(b.dataset.rate === 'up' ? 'Thanks — marked helpful.' : 'Thanks — we’ll improve grounding.'));
         chat.querySelectorAll('[data-esc]').forEach(b => b.onclick = () => {
           const msg = history[Number(b.dataset.esc)];
-          const instructors = (course.instructorIds || []);
+          const instructors = Domain.courseInstructorIds(course.id, Domain.learnerBatchId(App.user.id, course.id));
           instructors.forEach(id => notify(id, 'AI Tutor escalation', `${App.user.name} needs help on ${course.title}: ${history[Number(b.dataset.esc) - 1]?.text || msg.text}`, 'AI', `#/course/${course.id}`));
           toast('Escalated to your instructor.');
         });

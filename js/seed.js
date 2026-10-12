@@ -59,7 +59,7 @@ const SEED = (() => {
       tagline: 'From clean data to Copilot-assisted dashboards and automated reports.',
       description: 'A practical, project-based course that takes working professionals from Excel fundamentals to modern analytics: dynamic arrays, Power Query, data modelling, dashboards, AI features such as Copilot and Analyze Data, and automation with Office Scripts and macros.',
       level: 'Intermediate', programId: 'PRG-DA', divisionId: 'DIV-IT', programType: 'certificate', delivery: 'hybrid', status: 'published',
-      instructorIds: ['u-faraz'], startDate: D(-21), endDate: D(28), icon: 'grid', accent: '#0F766E', fee: 25000,
+      startDate: D(-21), endDate: D(28), icon: 'grid', accent: '#0F766E', fee: 25000,
       duration: '8 weeks · 16 hours', schedule: 'Weekly live class, 7:00–9:00 PM (PKT)', venue: 'Zoom + SDC Karachi Computer Lab',
       outcomes: ['Clean, shape and validate business data with confidence', 'Analyse data with dynamic arrays, XLOOKUP and PivotTables', 'Build repeatable ETL pipelines in Power Query', 'Design interactive dashboards for decision makers', 'Use Copilot and AI features to accelerate analysis', 'Automate recurring reports with Office Scripts and macros'],
       prerequisites: 'Basic computer literacy and access to Microsoft Excel 2021 or Microsoft 365.',
@@ -76,7 +76,7 @@ const SEED = (() => {
       tagline: 'Turn raw data into interactive stories that drive decisions.',
       description: 'Learn to connect, prepare and visualise data in Tableau. Build calculated fields, LOD expressions and interactive dashboards, then publish and share insights with stakeholders.',
       level: 'Beginner', programId: 'PRG-DA', divisionId: 'DIV-IT', programType: 'certificate', delivery: 'online', status: 'published',
-      instructorIds: ['u-nida'], startDate: D(-13), endDate: D(22), icon: 'chart', accent: '#1D4ED8', fee: 18000,
+      startDate: D(-13), endDate: D(22), icon: 'chart', accent: '#1D4ED8', fee: 18000,
       duration: '6 weeks · 12 hours', schedule: 'Tuesdays & Thursdays, 8:00–9:00 PM (PKT)', venue: 'Online via Zoom',
       outcomes: ['Connect to and prepare data sources', 'Build core chart types and maps', 'Write calculated fields and LOD expressions', 'Design interactive dashboards and stories', 'Publish to Tableau Public / Cloud'],
       prerequisites: 'No prior Tableau experience required. Tableau Public (free) installed.',
@@ -92,7 +92,7 @@ const SEED = (() => {
       tagline: 'Plan, source, make and deliver — with Lean Six Sigma discipline.',
       description: 'A comprehensive diploma covering demand planning, procurement, inventory, warehousing, logistics and process improvement using Lean Six Sigma (Green Belt level).',
       level: 'Intermediate', programId: 'PRG-SCM', divisionId: 'DIV-MGT', programType: 'diploma', delivery: 'onsite', status: 'published',
-      instructorIds: ['u-kamran'], startDate: D(4), endDate: D(170), icon: 'truck', accent: '#B45309', fee: 65000,
+      startDate: D(4), endDate: D(170), icon: 'truck', accent: '#B45309', fee: 65000,
       duration: '6 months · weekends', schedule: 'Saturdays, 10:00 AM–1:00 PM', venue: 'SDC Karachi, Training Hall B',
       outcomes: ['Map and optimise end-to-end supply chains', 'Forecast demand and plan inventory', 'Negotiate and manage suppliers', 'Apply DMAIC to real process problems'],
       prerequisites: 'Graduate degree or 2+ years of industry experience.',
@@ -108,7 +108,7 @@ const SEED = (() => {
       tagline: 'Two intensive days from data import to a published report.',
       description: 'A fast-paced weekend workshop introducing Power BI Desktop, data modelling, DAX basics and publishing.',
       level: 'Beginner', programId: 'PRG-WS', divisionId: 'DIV-IT', programType: 'workshop', delivery: 'onsite', status: 'published',
-      instructorIds: ['u-faraz'], startDate: D(-45), endDate: D(-44), icon: 'pie', accent: '#C9A227', fee: 8000,
+      startDate: D(-45), endDate: D(-44), icon: 'pie', accent: '#C9A227', fee: 8000,
       duration: '2 days · 12 hours', schedule: 'Saturday & Sunday, 10:00 AM–4:00 PM', venue: 'SDC Karachi Computer Lab',
       outcomes: ['Import and transform data', 'Build a star-schema model', 'Create measures with DAX', 'Publish and share a report'],
       prerequisites: 'Comfort with Excel.',
@@ -120,7 +120,7 @@ const SEED = (() => {
       tagline: 'Build a safer workplace with practical hazard control.',
       description: 'Covers hazard identification, risk assessment, incident investigation, PPE, fire safety and legal duties aligned with OSHA and ISO 45001.',
       level: 'All levels', programId: 'PRG-HSE', divisionId: 'DIV-HSE', programType: 'certificate', delivery: 'hybrid', status: 'draft',
-      instructorIds: ['u-ayesha'], startDate: D(30), endDate: D(72), icon: 'shield', accent: '#DC2626', fee: 22000,
+      startDate: D(30), endDate: D(72), icon: 'shield', accent: '#DC2626', fee: 22000,
       duration: '6 weeks', schedule: 'Wednesdays, 6:30–8:30 PM', venue: 'Zoom + SDC Karachi',
       outcomes: ['Identify workplace hazards', 'Conduct risk assessments', 'Investigate incidents', 'Build an HSE management system'],
       prerequisites: 'None.',
@@ -174,7 +174,8 @@ const SEED = (() => {
     { id: 'B-EX-2', courseId: 'C-EXCEL', name: 'Excel AI — Weekend (Onsite)', instructorId: 'u-faraz', startDate: D(-21), endDate: D(28), delivery: 'onsite', venue: 'SDC Karachi Computer Lab', capacity: 25, status: 'Active' },
     { id: 'B-TB-1', courseId: 'C-TABLEAU', name: 'Tableau — Cohort 3', instructorId: 'u-nida', startDate: D(-13), endDate: D(22), delivery: 'online', venue: 'Zoom', capacity: 40, status: 'Active' },
     { id: 'B-SC-1', courseId: 'C-SCM', name: 'DSCM — Batch 12', instructorId: 'u-kamran', startDate: D(4), endDate: D(170), delivery: 'onsite', venue: 'Training Hall B', capacity: 30, status: 'Active' },
-    { id: 'B-PB-1', courseId: 'C-PBI', name: 'Power BI Workshop — Aug', instructorId: 'u-faraz', startDate: D(-45), endDate: D(-44), delivery: 'onsite', venue: 'Computer Lab', capacity: 25, status: 'Completed' }
+    { id: 'B-PB-1', courseId: 'C-PBI', name: 'Power BI Workshop — Aug', instructorId: 'u-faraz', startDate: D(-45), endDate: D(-44), delivery: 'onsite', venue: 'Computer Lab', capacity: 25, status: 'Completed' },
+    { id: 'B-HS-1', courseId: 'C-HSE', name: 'HSE — Evening (Hybrid)', instructorId: 'u-ayesha', startDate: D(30), endDate: D(72), delivery: 'hybrid', venue: 'Zoom + SDC Karachi', capacity: 30, status: 'Active' }
   ];
 
   const E = (id, learnerId, courseId, batchId, extra = {}) => ({ id, learnerId, courseId, batchId, enrolledAt: D(-25), accessMode: 'full', allowedSessionIds: [], status: 'Active', ...extra });
