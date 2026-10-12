@@ -9,8 +9,9 @@ function openAiDrawer({ title, bodyHTML, onMount }) {
     <div class="ai-drawer-body">${bodyHTML}</div>
   </aside>`;
   document.body.appendChild(el);
-  requestAnimationFrame(() => el.classList.add('open'));
-  const close = () => { el.classList.remove('open'); setTimeout(() => el.remove(), 200); };
+  const prev = document.activeElement, release = trapFocus(el.querySelector('.ai-drawer-panel'), () => close());
+  requestAnimationFrame(() => { el.classList.add('open'); (el.querySelector('.ai-drawer-body textarea, .ai-drawer-body input, .ai-drawer-body select, .ai-drawer-body button') || el.querySelector('[data-close]')).focus(); });
+  const close = () => { release(); el.classList.remove('open'); setTimeout(() => el.remove(), 200); prev?.focus?.(); };
   el.querySelectorAll('[data-close]').forEach(b => b.onclick = close);
   onMount?.(el, close);
   return { el, close };
@@ -42,6 +43,7 @@ function openTutorDrawer(course, session) {
         chat.scrollTop = chat.scrollHeight;
       };
       paint();
+      el.querySelector('[data-form] textarea').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.target.form.requestSubmit(); } }); // Enter sends, Shift+Enter = new line
       el.querySelector('[data-form]').onsubmit = async e => {
         e.preventDefault();
         const q = e.target.q.value.trim(); if (!q) return;

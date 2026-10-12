@@ -674,16 +674,35 @@ function progressBar(percent, label) {
   return `<div class="progress" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100" ${label ? `aria-label="${esc(label)}"` : ''}><span style="width:${p}%"></span></div>`;
 }
 
+/* Keyboard handling for dialogs and drawers: Tab stays inside the top-most layer, Escape closes only
+   that layer, and focus returns to where it was. Returns a function that removes the handler. */
+const _layers = [];
+function trapFocus(el, onEscape) {
+  const sel = 'a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  const onKey = e => {
+    if (_layers[_layers.length - 1] !== el) return;
+    if (e.key === 'Escape') { e.preventDefault(); onEscape(); return; }
+    if (e.key !== 'Tab') return;
+    const items = [...el.querySelectorAll(sel)].filter(x => x.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0], last = items[items.length - 1];
+    if (!el.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  _layers.push(el); document.addEventListener('keydown', onKey);
+  return () => { document.removeEventListener('keydown', onKey); const i = _layers.indexOf(el); if (i >= 0) _layers.splice(i, 1); };
+}
 function openModal({ title, body = '', size = 'md', footer = '', onClose } = {}) {
   const wrap = document.createElement('div');
   wrap.className = 'modal-backdrop';
   wrap.innerHTML = `<div class="modal modal-${size}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><h2>${esc(title)}</h2><button class="icon-btn" data-modal-close aria-label="Close">${icon('x')}</button></div><div class="modal-body">${body}</div>${footer ? `<div class="modal-foot">${footer}</div>` : ''}</div>`;
   const prev = document.activeElement;
-  const close = () => { wrap.classList.add('out'); document.removeEventListener('keydown', onKey); setTimeout(() => wrap.remove(), 160); onClose?.(); prev?.focus?.(); };
-  const onKey = e => { if (e.key === 'Escape') close(); };
+  let release = () => {};
+  const close = () => { if (wrap.classList.contains('out')) return; wrap.classList.add('out'); release(); setTimeout(() => wrap.remove(), 160); onClose?.(); prev?.focus?.(); };
   wrap.addEventListener('mousedown', e => { if (e.target === wrap) close(); });
   wrap.querySelectorAll('[data-modal-close]').forEach(b => b.addEventListener('click', close));
-  document.addEventListener('keydown', onKey);
+  release = trapFocus(wrap, close);
   document.body.appendChild(wrap);
   setTimeout(() => (wrap.querySelector('[autofocus],input:not([type=hidden]):not([readonly]),select,textarea,button:not([data-modal-close])') || wrap.querySelector('.modal')).focus?.(), 30);
   wrap.close = close;

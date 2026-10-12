@@ -83,7 +83,7 @@ function resourceList(resources, unlocked, ctxAI = null) {
   return `<ul class="resource-list">${resources.map(r => {
     const isLink = r.type === 'link';
     return `<li><span class="res-icon">${icon(fileIcon(r.type), 16)}</span><div class="grow"><b>${esc(r.title)}</b><small class="muted">${isLink ? 'External link' : `${esc(String(r.type || fileExt(r.url)).toUpperCase())}${r.size ? ' · ' + fmtSize(r.size) : ''}`}</small></div>
-      ${canSum && !isLink ? `<button type="button" class="btn btn-ghost btn-sm" data-summarize="${esc(r.id)}" title="Summarize with SDC Learn AI">${icon('sparkles', 15)}</button>` : ''}
+      ${canSum && !isLink ? `<button type="button" class="btn btn-ghost btn-sm" data-summarize="${esc(r.id)}" title="Summarize with SDC Learn AI" aria-label="Summarize ${esc(r.title)} with SDC Learn AI">${icon('sparkles', 15)}<span>Summarize</span></button>` : ''}
       <a class="btn btn-ghost btn-sm" href="${esc(r.url)}" ${isLink ? 'target="_blank" rel="noopener"' : `download="${esc(r.fileName || r.title)}"`}>${icon(isLink ? 'external' : 'download', 16)}<span class="hide-sm">${isLink ? 'Open' : 'Download'}</span></a></li>`;
   }).join('')}</ul>`;
 }

@@ -64,7 +64,7 @@ const App = {
   },
 
   mountShell() {
-    const b = brand(), u = this.user;
+    const b = brand(), u = this.user, toasts = document.querySelector('.toast-stack'); // kept across the rebuild below
     document.body.innerHTML = `
       <a class="skip-link" href="#main">Skip to content</a>
       <div class="shell">
@@ -99,6 +99,7 @@ const App = {
           <footer class="app-foot"><span>${esc(footerText())}</span><span><a href="${esc(b.website)}" target="_blank" rel="noopener">${esc(b.website.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a> · ${esc(b.phone)} · <a href="mailto:${esc(b.email)}">${esc(b.email)}</a></span></footer>
         </div>
       </div>`;
+    if (toasts) document.body.appendChild(toasts);
     const side = document.querySelector('.sidebar'), scrim = document.querySelector('[data-scrim]');
     const closeMenu = () => { side.classList.remove('open'); scrim.classList.remove('show'); };
     // Phones/tablets: slide-in drawer. Desktop: collapse the sidebar to icons (remembered per browser).

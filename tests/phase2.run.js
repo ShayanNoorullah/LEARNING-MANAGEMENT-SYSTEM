@@ -211,6 +211,39 @@ const supa = http.createServer((req, res) => {
   await tc('AI-INT-12', () => run(p, `const st=await SDCAI.status(); for(const pr of st.profiles) await SDCAI.configure({profileId:pr.id,provider:pr.provider,remove:true}); await as('u-ali'); await go('#/course/C-EXCEL/session/S-EX-1'); $('[data-tutor-btn]').click(); await until(()=>$('.ai-drawer [data-form]')); const f=$('.ai-drawer [data-form]'); f.q.value='hi'; f.requestSubmit(); await until(()=>!/Thinking/.test($('.ai-drawer').innerText)); const t=$('.ai-drawer').innerText; $('.ai-drawer [data-close]').click(); await W(250); await go('#/course/C-EXCEL'); if(!/credentials|Configure|unavailable/i.test(t)) throw new Error('unclear error: '+t.slice(-150)); if(!$('.course-hero')) throw new Error('course page broken');`));
 
   await tc('QZ-07b', () => run(p, `const qz=db().quizzes.find(q=>q.title==='QA quiz')?.id; if(!qz) throw new Error('QA quiz missing'); updateRecord('quizzes',qz,{status:'published'}); await as('u-ali'); await go('#/course/C-EXCEL/quiz/'+qz); const f=await until(()=>$('[data-quiz]')); f.querySelectorAll('input[type=radio]').forEach(i=>i.checked=true); f.querySelectorAll('textarea').forEach(t=>t.value='My answer'); f.requestSubmit(); await until(()=>location.hash.endsWith('/quizzes'),9000); invalidateCache(); const a=db().quizAttempts.filter(x=>x.quizId===qz).pop(); await as('u-admin'); if(!a) throw new Error('no attempt'); if(!a.pendingShort) throw new Error('short answer scored 0 instead of pending when AI is unavailable');`));
+  /* ---------------- fixes from the manual test round (Oct 13) ---------------- */
+  await boot('u-admin', '#/settings?tab=features');
+  await tc('ADM-10b', async () => {
+    await p.waitForSelector('[data-pane] [name=calendar]'); await p.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+    await p.click('[data-pane] [data-field=calendar] .switch'); await W(600);
+    const r = await p.evaluate(() => ({ saved: settings().features.calendar, toast: [...document.querySelectorAll('.toast')].map(t => t.innerText).join(' | ') }));
+    check(r.saved === false, 'flipping a feature switch did not save'); check(/saved/i.test(r.toast), 'no confirmation after saving: ' + r.toast);
+    await p.click('[data-pane] [data-field=calendar] .switch'); await W(600); check(await p.evaluate(() => settings().features.calendar), 'could not switch it back on');
+  });
+  await tc('ADM-04b', () => run(p, `await go('#/roles'); (await until(()=>$('[data-ed="admin"]'))).click(); await until(()=>modal()); const t=modal().innerText; modal().querySelector('[data-modal-close]').click(); await W(150); if(!/always has full access/.test(t)||!/Duplicate/.test(t)) throw new Error('locked Coordinator role not explained');`));
+  await tc('NFR-04b', async () => {
+    await p.evaluate(() => { location.hash = '#/roles'; }); await W(500);
+    await p.evaluate(() => document.querySelector('[data-ed="teacher"]').click()); await W(400);
+    for (let i = 0; i < 80; i++) await p.keyboard.press('Tab');
+    check(await p.evaluate(() => document.querySelector('.modal').contains(document.activeElement)), 'Tab moved focus out of the dialog');
+    await p.evaluate(() => { confirmDialog('Stacked?'); }); await W(300);
+    await p.keyboard.press('Escape'); await W(300);
+    check(await p.evaluate(() => document.querySelectorAll('.modal-backdrop:not(.out)').length === 1), 'Escape closed more than the top dialog');
+    await p.keyboard.press('Escape'); await W(300);
+    check(await p.evaluate(() => !document.querySelector('.modal-backdrop:not(.out)')), 'Escape did not close the dialog');
+  });
+  await boot('u-ali', '#/course/C-EXCEL/session/S-EX-1');
+  await tc('NFR-04c', async () => {
+    await p.focus('[data-tutor-btn]'); await p.keyboard.press('Enter'); await W(500);
+    check(await p.evaluate(() => document.activeElement?.closest('.ai-drawer') && document.activeElement.tagName === 'TEXTAREA'), 'focus not moved into the tutor drawer');
+    for (let i = 0; i < 30; i++) await p.keyboard.press('Tab');
+    check(await p.evaluate(() => !!document.activeElement?.closest('.ai-drawer')), 'Tab left the drawer');
+    await p.keyboard.press('Escape'); await W(400);
+    check(await p.evaluate(() => !document.querySelector('.ai-drawer') && document.activeElement?.matches('[data-tutor-btn]')), 'Escape did not close the drawer and return focus');
+  });
+  await tc('AI-T-10b', () => run(p, `const s=Domain.courseSessions('C-EXCEL').find(x=>x.resources?.some(r=>r.type!=='link')); await go('#/course/C-EXCEL/session/'+s.id); const b=await until(()=>$('[data-summarize]')); if(!/Summarize/.test(b.innerText)) throw new Error('Summarize button has no visible label');`));
+  await tc('QZ-08b', () => run(p, `await go('#/results'); await W(300); const t=text(); if(!/Quizzes avg\\.|QUIZZES AVG/i.test(t)) throw new Error('learner results have no quizzes column'); const pub=db().results.find(r=>r.learnerId==='u-ali'&&r.courseId==='C-EXCEL'&&r.published); const qa=pub?pub.quizAvg:Domain.quizAverage('u-ali','C-EXCEL'); if(qa!=null && !new RegExp(qa+'%').test(t)) throw new Error('learner quiz % not shown');`));
+
   /* ---------------- mobile / themes / keyboard ---------------- */
   const m = await page({ width: 375, height: 740, isMobile: true, hasTouch: true });
   await m.goto(base + '/login.html', { waitUntil: 'networkidle0' });

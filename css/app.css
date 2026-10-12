@@ -878,3 +878,8 @@ body, .sidebar, .topbar, .card, .stat, .course-card, .session-row, .input { tran
 .quiz-q .check, .ai-drawer fieldset .check { display: flex; width: 100%; padding: 8px 10px; margin-top: 4px; border-radius: var(--r-sm); transition: background .12s; }
 .quiz-q .check:hover, .ai-drawer fieldset .check:hover { background: var(--surface-2); }
 .ai-drawer fieldset.card { margin: 0 0 10px; }
+.result-card .facts.cols-2 { margin-top: 10px; }
+/* Side-column resources: file name gets the full width, actions sit on their own row */
+.layout-aside aside .resource-list li { flex-wrap: wrap; }
+.layout-aside aside .resource-list li > .grow { flex: 1 1 calc(100% - 52px); }
+.layout-aside aside .resource-list li > [data-summarize] { margin-left: 42px; }
