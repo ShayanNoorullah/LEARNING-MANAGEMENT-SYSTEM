@@ -53,7 +53,13 @@ const old3 = { schema: 2, batches: [{ id: 'B1', courseId: 'C' }, { id: 'B2', cou
 ctx.migrateState(old3, []); ctx.migrateState({ ...old3, schema: 2 }, []);
 assert.deepEqual(old3.assignments.map(a => a.id + ':' + a.batchId), ['A:B1', 'A-B2:B2'], 'one copy per batch, idempotent');
 assert.deepEqual(old3.submissions.map(s => s.assignmentId), ['A', 'A-B2'], 'submissions follow the learner batch');
-assert.equal(old3.quizAttempts[0].quizId, 'Q-B2'); assert.equal(old3.schema, 3);
+assert.equal(old3.quizAttempts[0].quizId, 'Q-B2'); assert.equal(old3.schema, 4);
+// Schema 4: course instructors move onto batches without anyone losing access.
+const old4 = { schema: 3, courses: [{ id: 'C1', title: 'One', instructorIds: ['T1', 'T2'] }, { id: 'C2', title: 'Two', instructorIds: ['T3'] }], batches: [{ id: 'B1', courseId: 'C1', instructorId: 'T1' }, { id: 'B2', courseId: 'C1' }] };
+ctx.migrateState(old4, []); ctx.migrateState({ ...old4, schema: 3 }, []);
+assert.equal(old4.batches.find(b => b.id === 'B2').instructorId, 'T2', 'fills a batch without an instructor');
+assert.deepEqual(old4.batches.filter(b => b.courseId === 'C2').map(b => b.id + ':' + b.instructorId), ['C2-B1:T3'], 'course without a batch gets one, once');
+assert.ok(old4.courses.every(c => !c.instructorIds), 'course-level instructors removed');
 // Learners see only their own batch's work: Usman (weekend batch) never gets the evening batch's assignments.
 assert.deepEqual(Domain.learnerAssignments('u-usman', 'C-EXCEL').map(a => a.id), ['A-EX-W1']);
 assert.ok(!Domain.learnerAssignments('u-ali', 'C-EXCEL').some(a => a.id === 'A-EX-W1'), 'evening learner does not see weekend work');

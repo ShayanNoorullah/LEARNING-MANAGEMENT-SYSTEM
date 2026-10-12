@@ -66,7 +66,8 @@
     check(/What you'll learn|outcome/i.test(t) && /Module/i.test(t), 'outcomes/modules missing'); check(/Delivery/.test(t), 'delivery details missing');
   });
   await tc('TC-024', async () => {
-    const today = todayISO(), y = new Date(Date.now() - 864e5).toISOString().slice(0, 10), tm = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+    const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); }; // local dates, like todayISO()
+    const today = todayISO(), y = day(-1), tm = day(1);
     check(Domain.sessionStatus({ date: y }) === 'Available' && Domain.sessionStatus({ date: today }) === 'Today' && Domain.sessionStatus({ date: tm }) === 'Upcoming', 'status calculation wrong');
     await go('#/course/C-EXCEL'); const t = $('[data-list]').innerText; check(/Today/.test(t) && /Upcoming/.test(t), 'badges not rendered');
   });
