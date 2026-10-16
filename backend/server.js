@@ -11,6 +11,10 @@ let neonSql=null; try { if(process.env.DATABASE_URL){ const {neon}=require('@neo
 // Passkey library (~190 ms to load) is required on first passkey request, not on every cold start.
 const wa=n=>(...a)=>require('@simplewebauthn/server')[n](...a);
 const generateRegistrationOptions=wa('generateRegistrationOptions'),verifyRegistrationResponse=wa('verifyRegistrationResponse'),generateAuthenticationOptions=wa('generateAuthenticationOptions'),verifyAuthenticationResponse=wa('verifyAuthenticationResponse');
+// Refuse to run the gateway against the live project from a developer machine (fails before listening).
+const devSafety=require('./dev-safety');
+const SAFETY=devSafety.assertSafeStartup();
+if(SAFETY.mode!=='production')console.log('[SDC Learn] '+devSafety.describe(SAFETY));
 const app=express();
 const PORT=Number(process.env.PORT||3000);
 const SECRET=process.env.JWT_SECRET||'sdc-learn-development-secret-change-in-production';
@@ -182,6 +186,8 @@ app.post('/api/lms/uploads',(req,res)=>lmsUpload.single('file')(req,res,err=>{
 }));
 app.get('/api/lms/upload-config',(req,res)=>res.json({maxMB:UPLOAD_MAX_MB,types:UPLOAD_TYPES,storage:USE_BLOB?'vercel-blob':'disk'}));
 app.get('/api/admin/export',auth,roles('admin'),(req,res)=>res.json(readDB()));
+// Outside production the live cloud config is never sent to the browser (see dev-safety.js).
+app.get('/js/cloud-config.js',devSafety.middleware());
 app.use(express.static(ROOT,{extensions:['html']}));
 app.get('*',(req,res)=>res.sendFile(path.join(ROOT,'index.html')));
 app.use((err,req,res,next)=>{console.error(err);res.status(err.status||500).json({error:err.message||'Server error'});});

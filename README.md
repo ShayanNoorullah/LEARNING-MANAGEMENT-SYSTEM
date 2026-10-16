@@ -384,7 +384,7 @@ Full field reference: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md#data-model
 
 - Passwords are stored only as **salted, iterated SHA-256 hashes**.
 - Uploads are validated **on the server** (extension + size), stored under random names and served as downloads with `nosniff`.
-- Permission checks run in the browser: they control the experience but are **not a server-side boundary**. For public deployments, follow [supabase/PRODUCTION_SECURITY_NOTES.md](supabase/PRODUCTION_SECURITY_NOTES.md) and the [production checklist](SETUP.md#9-production-checklist).
+- In gateway mode (`SDC_STATE_SECRET` set), the server enforces permissions for accounts, roles, settings and 14 collections, including grades, payments and certificates (see [FEATURES.md](FEATURES.md#12-data-storage-and-cloud-sync)). Other collections and every check without the gateway run in the browser only and are **not a server-side boundary**. For public deployments, follow [supabase/PRODUCTION_SECURITY_NOTES.md](supabase/PRODUCTION_SECURITY_NOTES.md) and the [production checklist](SETUP.md#9-production-checklist).
 
 ---
 

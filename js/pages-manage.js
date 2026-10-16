@@ -67,14 +67,24 @@ const opt = {
   delivery: () => pairs(lms().deliveryModes),
   levels: () => pairs(lms().levels)
 };
-const COURSE_ICONS = ['book', 'grid', 'chart', 'pie', 'database', 'truck', 'shield', 'globe', 'cap', 'layers', 'target', 'sparkles', 'building', 'wallet'];
+const COURSE_ICONS = CourseGenLogic.ICONS; // one list, shared with the AI course generator
+
+/* "AI draft" shows until the course is published (Final Plan FR-CG-12). A demo-mode sample says so. */
+function aiDraftBadge(c) {
+  if (!c?.aiGenerated || c.status === 'published') return '';
+  return `<span class="ai-badge" title="${c.aiMeta?.mock ? 'Built-in demo sample, not written by AI' : 'Drafted with SDC Learn AI'}">${icon('sparkles', 12)} ${c.aiMeta?.mock ? 'Demo sample' : 'AI draft'}</span>`;
+}
+function aiDraftNote(c) {
+  if (!c?.aiGenerated || c.status === 'published') return '';
+  return `<div class="alert cg-note">${c.aiMeta?.mock ? '<b>Demo sample, not written by AI.</b> Replace the content before publishing.' : '<b>Drafted with SDC Learn AI. Review the content before publishing.</b>'}${c.aiMeta?.model && !c.aiMeta?.mock ? ` <span class="muted small">Model: ${esc(c.aiMeta.model)}</span>` : ''}</div>`;
+}
 
 /* ---------------------------------------------------------- Courses list */
 App.route('/manage/courses', { perm: 'courses', render(ctx) {
   const u = ctx.user, isAdmin = scopeAll(u);
   ctx.setCrumbs([{ label: isAdmin ? t('courses') : `My ${t('courses')}` }]);
   const list = () => Domain.visibleCourses(u);
-  ctx.root.innerHTML = `${pageHead(isAdmin ? t('courses') : `My ${t('courses')}`, isAdmin ? `Create ${t('courses', true)}, schedule ${t('sessions', true)} and publish them to ${t('learners', true)}.` : `${t('courses')} you teach. Publish ${t('sessions', true)}, resources and ${t('assignments', true)}.`, can('courses', 'create') ? `<button class="btn btn-primary" data-add>${icon('plus', 16)} New ${t('course', true)}</button>` : '')}
+  ctx.root.innerHTML = `${pageHead(isAdmin ? t('courses') : `My ${t('courses')}`, isAdmin ? `Create ${t('courses', true)}, schedule ${t('sessions', true)} and publish them to ${t('learners', true)}.` : `${t('courses')} you teach. Publish ${t('sessions', true)}, resources and ${t('assignments', true)}.`, `${courseGenAllowed(u) ? `<a class="btn btn-secondary" href="#/manage/courses/generate" data-generate>${icon('sparkles', 16)} Generate with SDC Learn AI</a>` : ''}${can('courses', 'create') ? `<button class="btn btn-primary" data-add>${icon('plus', 16)} New ${t('course', true)}</button>` : ''}`)}
     <div class="toolbar"><label class="search-box grow">${icon('search', 16)}<input type="search" data-q placeholder="Search ${t('courses', true)}…" aria-label="Search"></label>
     <div class="chips">${['All', 'published', 'draft', 'archived'].map((f, i) => `<button class="chip ${i ? '' : 'active'}" data-f="${f}">${f === 'All' ? 'All' : f[0].toUpperCase() + f.slice(1)}</button>`).join('')}</div></div>
     <div class="course-grid" data-grid></div>`;
@@ -84,7 +94,7 @@ App.route('/manage/courses', { perm: 'courses', render(ctx) {
     ctx.root.querySelector('[data-grid]').innerHTML = rows.length ? rows.map(c => {
       const ss = Domain.courseSessions(c.id, true), learners = Domain.courseLearners(c.id).length, pend = db().submissions.filter(s => s.courseId === c.id && ['Submitted', 'Late'].includes(s.status)).length;
       return `<article class="course-card manage" style="--c:${esc(c.accent || 'var(--brand)')}">
-        <div class="cc-top"><span class="cc-icon">${icon(c.icon || 'book', 20)}</span><span class="cc-tags">${badge(c.status === 'published' ? 'Published' : c.status === 'archived' ? 'Archived' : 'Draft')}</span></div>
+        <div class="cc-top"><span class="cc-icon">${icon(c.icon || 'book', 20)}</span><span class="cc-tags">${aiDraftBadge(c)}${badge(c.status === 'published' ? 'Published' : c.status === 'archived' ? 'Archived' : 'Draft')}</span></div>
         <h3><a href="#/manage/course/${c.id}">${esc(c.title)}</a></h3>
         <p class="cc-tagline">${esc(c.tagline || '')}</p>
         <div class="cc-meta"><span>${icon('layers', 14)} ${ss.length} ${t('sessions', true)}</span><span>${icon('users', 14)} ${learners} ${t('learners', true)}</span>${pend ? `<span class="text-warning">${icon('clipboard', 14)} ${pend} to grade</span>` : ''}</div>
@@ -184,10 +194,11 @@ App.route('/manage/course/:id', { perm: 'courses', render(ctx) {
   if (!course || !Domain.canManageCourse(u, course)) return deniedPage(ctx, `You can't manage this ${t('course', true)}.`);
   const tab = ctx.query.tab || 'overview';
   ctx.setCrumbs([{ label: scopeAll(u) ? t('courses') : `My ${t('courses')}`, href: '#/manage/courses' }, { label: course.title }]);
-  const tabs = [['overview', 'Overview', 'layout'], ['sessions', t('sessions'), 'layers'], ['batches', t('batches'), 'grid'], ['learners', t('learners'), 'users']];
+  const tabs = [['overview', 'Overview', 'layout'], ['sessions', t('sessions'), 'layers'], ['content', 'Content', 'book'], ['batches', t('batches'), 'grid'], ['learners', t('learners'), 'users']];
   ctx.root.innerHTML = `
-    <div class="page-head"><div><span class="eyebrow">${esc(course.code || t('course'))} · ${badge(course.status === 'published' ? 'Published' : course.status === 'archived' ? 'Archived' : 'Draft')}</span><h1>${esc(course.title)}</h1><p>${esc(course.tagline || '')}</p></div>
-      <div class="page-actions"><a class="btn btn-ghost btn-sm" href="#/course/${course.id}">${icon('eye', 15)} Preview as ${t('learner', true)}</a><button class="btn btn-secondary btn-sm" data-edit-course>${icon('edit', 15)} Edit details</button>${can('courses', 'publish') ? `<button class="btn btn-primary btn-sm" data-toggle-pub>${course.status === 'published' ? 'Unpublish' : 'Publish'}</button>` : ''}</div></div>
+    <div class="page-head"><div><span class="eyebrow">${esc(course.code || t('course'))} · ${badge(course.status === 'published' ? 'Published' : course.status === 'archived' ? 'Archived' : 'Draft')} ${aiDraftBadge(course)}</span><h1>${esc(course.title)}</h1><p>${esc(course.tagline || '')}</p></div>
+      <div class="page-actions"><a class="btn btn-ghost btn-sm" href="#/course/${course.id}">${icon('eye', 15)} Preview as ${t('learner', true)}</a>${courseContentAllowed(course, u) && Domain.courseSessions(course.id, true).length ? `<a class="btn btn-secondary btn-sm" href="#/manage/course/${course.id}?tab=content${tab === 'content' ? '' : '&start=1'}">${icon('sparkles', 15)} Generate Full Course Content with AI</a>` : ''}<button class="btn btn-secondary btn-sm" data-edit-course>${icon('edit', 15)} Edit details</button>${can('courses', 'publish') ? `<button class="btn btn-primary btn-sm" data-toggle-pub>${course.status === 'published' ? 'Unpublish' : 'Publish'}</button>` : ''}</div></div>
+    ${aiDraftNote(course)}
     <div class="tabs" role="tablist">${tabs.map(([k, l, i]) => `<a role="tab" href="#/manage/course/${course.id}?tab=${k}" class="tab ${tab === k ? 'active' : ''}" aria-selected="${tab === k}">${icon(i, 16)} ${esc(l)}</a>`).join('')}</div>
     <div data-tab></div>`;
   ctx.root.querySelector('[data-edit-course]').onclick = () => courseModal(course, () => ctx.refresh());
@@ -198,7 +209,7 @@ App.route('/manage/course/:id', { perm: 'courses', render(ctx) {
     toast(next === 'published' ? `${t('course')} published.` : `${t('course')} moved to draft.`); ctx.refresh();
   });
   const pane = ctx.root.querySelector('[data-tab]');
-  ({ overview: builderOverview, sessions: builderSessions, batches: builderBatches, learners: builderLearners })[tab]?.(pane, course, ctx);
+  ({ overview: builderOverview, sessions: builderSessions, content: builderContent, batches: builderBatches, learners: builderLearners })[tab]?.(pane, course, ctx);
 } });
 
 function builderOverview(pane, course, ctx) {
@@ -214,7 +225,9 @@ function builderOverview(pane, course, ctx) {
     [batches.length > 0, `${t('batch')} created (${t('assignments', true)} and ${t('quizzes', true)} are set per ${t('batch', true)})`, 'batches'],
     [!!(zoom.registerUrl || course.delivery === 'onsite'), 'Zoom details configured', null],
     [(course.outcomes || []).length > 0, 'Learning outcomes added', null],
-    [learners.length > 0, `${t('learners')} enrolled`, 'learners']
+    [learners.length > 0, `${t('learners')} enrolled`, 'learners'],
+    // Only for courses that use the AI content builder, so hand-built courses keep their checklist.
+    ...(course.aiGenerated || tcHasContent(course) ? [[CourseContentLogic.courseChecks(course, sessions).complete, 'Teaching content complete', 'content']] : [])
   ];
   pane.innerHTML = `
     <div class="stats">${statCard(t('sessions'), sessions.length, 'layers', `${sessions.filter(s => s.date && s.date < todayISO()).length} delivered`)}${statCard(t('learners'), learners.length, 'users')}${statCard('Avg. progress', avgProg + '%', 'target')}${statCard('To grade', pend, 'clipboard', '', '#/submissions?course=' + course.id)}</div>

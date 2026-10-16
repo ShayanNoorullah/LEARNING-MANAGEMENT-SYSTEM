@@ -67,6 +67,22 @@ Other demo learners and instructors use `@sdclearn.demo` emails too (e.g. `maria
 
 Manual checklist: [docs/testing/SDC-Learn-Manual-Test-Suite-Phase2.xlsx](docs/testing/SDC-Learn-Manual-Test-Suite-Phase2.xlsx).
 
+### AI course generator (Release 1)
+Run it on the isolated local database (never the live project):
+
+```bash
+npm run db:local -- init      # once: private PostgreSQL in .localdb/
+npm run db:local -- setup     # (re)create the sdc_dev database with demo data
+# optional, no AI provider needed: add SDC_AI_MOCK=1 to .env (demo mode, labelled "not AI")
+npm run db:local -- dev       # app on http://localhost:3000 against sdc_dev
+```
+
+1. Sign in as **Coordinator** (`admin@sdclearn.demo`). **Settings → Features** → switch **AI course generator** on → **Save features**.
+2. With a real provider: **Settings → Integrations** → save a profile and **Test**; optionally pick the provider/model for `courseGenerate`. Without one, use demo mode above.
+3. **Courses** → **Generate with SDC Learn AI** → fill the brief (the live total shows sessions and hours; more than 48 is refused) → **Generate outline**.
+4. Edit the outline (rename, add, remove, reorder modules, sessions and outcomes; warnings update as you type) → **Review** → **Create draft course**. The Course Builder opens on the new draft (AI draft label; sessions in module order).
+5. Reload the page at any step to see the unfinished draft restored. The course stays a draft: publish it yourself when ready.
+
 ## Tests
 
 Logic tests (permissions, course scoping, grading, AI helpers, gateway):

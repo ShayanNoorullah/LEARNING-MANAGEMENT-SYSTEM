@@ -83,6 +83,7 @@ const App = {
             <nav class="crumbs" data-crumbs aria-label="Breadcrumb"></nav>
             <div class="top-actions">
               <div class="course-tools" data-tools></div>
+              <button class="sync-chip" data-sync hidden aria-live="polite" onclick="window.SDCSyncUI&&SDCSyncUI.paint()"></button>
               <button class="icon-btn" data-theme-toggle aria-label="Toggle dark mode">${icon(currentTheme() === 'dark' ? 'sun' : 'moon')}</button>
               <div class="pop-wrap"><button class="icon-btn" data-bell aria-label="Notifications">${icon('bell')}<span class="dot-count" data-bell-count hidden></span></button><div class="popover popover-notes" data-bell-pop hidden></div></div>
               <div class="pop-wrap"><button class="user-chip" data-user-btn aria-label="Account menu">${avatar(u, 30)}<span class="hide-sm">${esc(u.name.split(' ')[0])}</span>${icon('chevronDown', 14)}</button>

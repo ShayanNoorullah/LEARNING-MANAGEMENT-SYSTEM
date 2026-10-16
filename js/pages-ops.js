@@ -580,40 +580,66 @@ async function renderIntegrationsPane(pane, ctx) {
   const providers = [
     { id: 'openai', label: 'OpenAI', hint: 'Chat Completions API' },
     { id: 'gemini', label: 'Google Gemini', hint: 'Generative Language API' },
-    { id: 'azure_openai', label: 'Azure OpenAI', hint: 'Endpoint + deployment' }
+    { id: 'azure_openai', label: 'Azure OpenAI', hint: 'Endpoint + deployment' },
+    { id: 'groq', label: 'Groq', hint: 'OpenAI-compatible API at api.groq.com · models listed from your key' }
   ];
+  const activeProvider = providers.some(p => p.id === pane.dataset.activeProvider) ? pane.dataset.activeProvider : providers[0].id;
+  const keyHint = { openai: 'sk-…', gemini: 'AIza…', azure_openai: 'Azure key', groq: 'gsk_…' };
+  const modelHint = { openai: 'gpt-4o-mini', gemini: 'gemini-3.5-flash-lite', azure_openai: 'Deployment model', groq: 'Load models, then choose' };
+  const label = id => providers.find(p => p.id === id)?.label || id;
+  const CAP_LABEL = { tutor: 'AI Tutor', summarize: 'Summaries', practiceQuiz: 'Practice quizzes', quizGenerate: 'Quiz generation', quizCheck: 'Quiz answer check', evaluate: 'Draft grading', atRisk: 'At-risk flags', sessionAssist: 'Session assistant', courseGenerate: 'Course outline generation', courseContent: 'Full course content', contentRepair: 'AI content repair' };
+  const dur = ms => ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
+  const provStats = id => {
+    const u = status.usage?.byProvider?.[id];
+    if (!u) return '';
+    return `${u.calls} answered · ${Number(u.tokens || 0).toLocaleString('en')} tokens${u.calls ? ` · ${dur(u.ms / u.calls)} average` : ''}${u.errors ? ` · ${u.errors} failed${u.lastError ? ` (last: ${esc(u.lastError.code)}${u.lastError.status ? ' ' + u.lastError.status : ''}, ${esc(fmtDateTime(u.lastError.at))})` : ''}` : ''}`;
+  };
+  const testLine = prof => !prof?.lastTest ? (prof ? 'Not tested since the key or model was saved.' : '')
+    : prof.lastTest.ok ? `Connection OK ${esc(fmtDateTime(prof.lastTest.at))}${prof.lastTest.model ? ` · ${esc(prof.lastTest.model)}` : ''}${prof.lastTest.ms ? ` · ${dur(prof.lastTest.ms)}` : ''}`
+    : `<span class="text-danger">Last test failed ${esc(fmtDateTime(prof.lastTest.at))}: ${esc(prof.lastTest.message || prof.lastTest.code)}</span>`;
   pane.innerHTML = `
     <div class="stack">
       <div class="card"><div class="row-between wrap gap-sm"><div><h3>${icon('sparkles', 18)} SDC Learn AI</h3><p class="small muted">Provider keys stay on the server. Capability routing is saved with your platform settings.</p></div>
         <label class="switch">${integ.aiEnabled !== false ? '' : ''}<input type="checkbox" data-ai-master ${integ.aiEnabled !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span class="switch-track"></span><span class="small">Master switch</span></label></div>
         ${status.error ? `<p class="help danger">${esc(status.error)}</p>` : `<p class="help">Usage this month: <b>${status.usage?.calls || 0}</b> calls · <b>${status.usage?.tokens || 0}</b> tokens</p>`}
       </div>
-      <div class="ai-provider-grid">${providers.map(p => {
+      <div class="ai-provider-layout">
+        <div class="ai-provider-sidebar"><div class="ai-provider-nav-head"><h3>AI providers</h3><p class="small muted">Choose a provider to configure.</p></div>
+        <div class="ai-provider-tabs" role="tablist" aria-label="AI providers" aria-orientation="vertical">${providers.map(p => {
+          const configured = (status.profiles || []).some(x => x.provider === p.id) || status.env?.[p.id];
+          return `<button type="button" class="ai-provider-tab" role="tab" id="provider-tab-${p.id}" aria-controls="provider-panel-${p.id}" aria-selected="${p.id === activeProvider}" tabindex="${p.id === activeProvider ? '0' : '-1'}" data-provider-tab="${p.id}"><span class="ai-provider-tab-copy"><span>${esc(p.label)}</span><small class="ai-provider-state ${configured ? 'configured' : ''}">${configured ? 'Configured' : 'Not set'}</small></span><span class="ai-provider-tab-arrow" aria-hidden="true">›</span></button>`;
+        }).join('')}</div></div>
+        <div class="ai-provider-panels">${providers.map(p => {
         const prof = (status.profiles || []).find(x => x.provider === p.id);
         const envOn = status.env?.[p.id];
-        return `<div class="card ai-provider" data-prov="${p.id}"><div class="row-between"><b>${esc(p.label)}</b>${prof || envOn ? badge('Configured', 'success') : badge('Not set', 'neutral')}</div>
-          <p class="small muted">${esc(p.hint)}${prof?.maskedKey ? ' · Key ' + esc(prof.maskedKey) : envOn ? ' · Env var set' : ''}</p>
+        return `<div class="ai-provider" role="tabpanel" id="provider-panel-${p.id}" aria-labelledby="provider-tab-${p.id}" tabindex="0" data-prov="${p.id}" ${p.id === activeProvider ? '' : 'hidden'}><div class="ai-provider-heading"><div class="row-between gap-sm wrap"><h3>${esc(p.label)}</h3>${prof || envOn ? badge('Configured', 'success') : badge('Not set', 'neutral')}</div>
+          <p class="small muted">${esc(p.hint)}${prof?.maskedKey ? ' · Key ' + esc(prof.maskedKey) : envOn ? ' · Env var set' : ''}</p></div>
+          ${prof || envOn ? `<p class="small muted" data-prov-status>${testLine(prof)}${provStats(p.id) ? `${prof ? '<br>' : ''}This month: ${provStats(p.id)}` : ''}</p>` : ''}
           <div class="form-grid tight">
-            <div class="field"><label class="label">API key</label><input class="input" type="password" data-key placeholder="${prof?.maskedKey || 'sk-… / AIza…'}" ${canCfg ? '' : 'disabled'}></div>
-            <div class="field"><label class="label">Default model</label><input class="input" data-model value="${esc(prof?.model || '')}" placeholder="gpt-4o-mini / gemini-2.0-flash" ${canCfg ? '' : 'disabled'}></div>
-            ${p.id === 'azure_openai' ? `<div class="field full"><label class="label">Endpoint</label><input class="input" data-endpoint value="${esc(prof?.endpoint || '')}" placeholder="https://….openai.azure.com" ${canCfg ? '' : 'disabled'}></div>
+            <div class="field"><label class="label">API key</label><input class="input" type="password" data-key autocomplete="off" placeholder="${esc(prof?.maskedKey || keyHint[p.id])}" ${canCfg ? '' : 'disabled'}></div>
+            <div class="field"><label class="label">Default model</label><input class="input" data-model value="${esc(prof?.model || '')}" placeholder="${esc(modelHint[p.id])}" ${p.id === 'groq' ? 'list="groq-models"' : ''} ${canCfg ? '' : 'disabled'}></div>
+            ${p.id === 'groq' ? `<div class="field full"><div class="ai-provider-models">${canCfg ? `<button type="button" class="btn btn-secondary btn-sm" data-load-models>${icon('database', 14)} Load models from Groq</button>` : ''}<span class="small muted" data-model-info>Models come from Groq's Models API for this key; nothing is built in.</span></div><datalist id="groq-models"></datalist></div>`
+            : p.id === 'azure_openai' ? `<div class="field full"><label class="label">Endpoint</label><input class="input" data-endpoint value="${esc(prof?.endpoint || '')}" placeholder="https://….openai.azure.com" ${canCfg ? '' : 'disabled'}></div>
               <div class="field"><label class="label">Deployment</label><input class="input" data-deploy value="${esc(prof?.deployment || '')}" ${canCfg ? '' : 'disabled'}></div>
               <div class="field"><label class="label">API version</label><input class="input" data-apiver value="${esc(prof?.apiVersion || '2024-08-01-preview')}" ${canCfg ? '' : 'disabled'}></div>` : `<div class="field full"><label class="label">Base URL (optional)</label><input class="input" data-base value="${esc(prof?.baseUrl || '')}" placeholder="Leave blank for default" ${canCfg ? '' : 'disabled'}></div>`}
           </div>
-          <div class="row gap-sm wrap mt-sm">${canCfg ? `<button class="btn btn-secondary btn-sm" data-save-prof>${icon('check', 14)} Save profile</button><button class="btn btn-ghost btn-sm" data-test-prov>${icon('sparkles', 14)} Test</button>` : badge('View only')}</div>
+          <div class="row gap-sm wrap ai-provider-actions">${canCfg ? `<button class="btn btn-primary btn-sm" data-save-prof>${icon('check', 14)} ${prof ? 'Update' : 'Save'} profile</button><button class="btn btn-secondary btn-sm" data-test-prov>${icon('sparkles', 14)} Test</button>${prof ? `<button class="btn btn-ghost btn-sm danger" data-remove-prof>${icon('trash', 14)} Remove</button>` : ''}` : badge('View only')}</div>
         </div>`;
-      }).join('')}</div>
+      }).join('')}</div></div>
       <div class="card"><h3>Capability map</h3><p class="small muted mb">Each SDC Learn AI feature can use a different provider and model.</p>
         <div class="table-wrap"><table class="table"><thead><tr><th>Capability</th><th>Provider</th><th>Model override</th></tr></thead><tbody>
           ${caps.map(cap => {
-            const c = integ.capabilities[cap] || {};
-            return `<tr data-cap="${cap}"><td><b>${esc(cap)}</b></td>
-              <td><select class="input" data-cap-prov ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${c.provider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></td>
-              <td><input class="input" data-cap-model value="${esc(c.model || '')}" placeholder="Use profile default" ${canCfg ? '' : 'disabled'}></td></tr>`;
+            const c = integ.capabilities[cap] || {}, parent = DEFAULT_SETTINGS.integrations.capabilities[cap]?.inherit;
+            const opts = (parent ? `<option value="" ${!c.provider ? 'selected' : ''}>Same as ${esc(CAP_LABEL[parent] || parent)}</option>` : '') + providers.map(p => `<option value="${p.id}" ${c.provider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
+            return `<tr data-cap="${cap}"><td><b>${esc(CAP_LABEL[cap] || cap)}</b><small class="muted block">${esc(cap)}</small></td>
+              <td><select class="input" data-cap-prov ${canCfg ? '' : 'disabled'}>${opts}</select></td>
+              <td><input class="input" data-cap-model value="${esc(c.model || '')}" placeholder="${parent && !c.provider ? 'Same as above' : 'Use profile default'}" ${c.provider === 'groq' ? 'list="groq-models"' : ''} ${canCfg ? '' : 'disabled'}></td></tr>`;
           }).join('')}
         </tbody></table></div>
+        <p class="small muted">Changing a provider or model affects only new requests: generated content, a person's edits, history and the progress of an unfinished course are kept, and generation continues where it stopped. Each part records the provider and model that wrote it.</p>
         <div class="form-grid mt"><div class="field"><label class="label">Primary provider</label><select class="input" data-primary ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${integ.primaryProvider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></div>
-          <div class="field"><label class="label">Fallback provider</label><select class="input" data-fallback ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${integ.fallbackProvider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></div>
+          <div class="field"><label class="label">Fallback provider</label><select class="input" data-fallback ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${integ.fallbackProvider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}<option value="none" ${integ.fallbackProvider === 'none' ? 'selected' : ''}>None: never switch automatically</option></select><p class="help">Used by the tutor, summaries and quizzes. The Course Builder (outline, course content, regenerate, repair, course check) never uses it: when its provider stops, it pauses and a coordinator chooses another provider there.</p>
+            <p class="help">Tried when the chosen provider fails. Groq is only used where it is chosen here or in the map above.</p></div>
           <div class="field"><label class="label">Monthly call budget</label><input class="input" type="number" data-budget-calls value="${integ.budget?.maxCalls ?? 5000}" ${canCfg ? '' : 'disabled'}></div>
           <div class="field"><label class="label">Hard stop at budget</label><label class="check"><input type="checkbox" data-budget-hard ${integ.budget?.hardStop !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span>Disable AI actions when exceeded</span></label></div>
           <div class="field"><label class="label">Strip PII from prompts</label><label class="check"><input type="checkbox" data-strip ${integ.stripPiiDefault !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span>Redact names, emails, phones, CNIC, reg. nos.</span></label></div>
@@ -621,6 +647,31 @@ async function renderIntegrationsPane(pane, ctx) {
         ${canCfg ? `<div class="form-foot"><button class="btn btn-primary" data-save-map>${icon('check', 16)} Save Integrations settings</button></div>` : ''}
       </div>
     </div>`;
+  const providerTabs = Array.from(pane.querySelectorAll('[data-provider-tab]'));
+  const selectProvider = provider => {
+    pane.dataset.activeProvider = provider;
+    providerTabs.forEach(tab => {
+      const selected = tab.dataset.providerTab === provider;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    pane.querySelectorAll('[data-prov]').forEach(panel => { panel.hidden = panel.dataset.prov !== provider; });
+  };
+  selectProvider(activeProvider);
+  providerTabs.forEach((tab, index) => {
+    tab.onclick = () => selectProvider(tab.dataset.providerTab);
+    tab.onkeydown = e => {
+      let next;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') next = (index + 1) % providerTabs.length;
+      else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') next = (index + providerTabs.length - 1) % providerTabs.length;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = providerTabs.length - 1;
+      else return;
+      e.preventDefault();
+      providerTabs[next].click();
+      providerTabs[next].focus();
+    };
+  });
   pane.querySelector('[data-ai-master]')?.addEventListener('change', e => {
     const d = db(); d.settings.integrations = { ...Domain.integrations(), aiEnabled: e.target.checked }; saveDB(d); toast(e.target.checked ? 'SDC Learn AI enabled.' : 'SDC Learn AI disabled.');
   });
@@ -637,7 +688,7 @@ async function renderIntegrationsPane(pane, ctx) {
         apiVersion: card.querySelector('[data-apiver]')?.value,
         baseUrl: card.querySelector('[data-base]')?.value
       });
-      toast(`${provider} profile saved.`); renderIntegrationsPane(pane, ctx);
+      toast(`${label(provider)} profile saved.`); renderIntegrationsPane(pane, ctx);
     } catch (err) { toast(err.message, 'error'); }
   });
   pane.querySelectorAll('[data-test-prov]').forEach(btn => btn.onclick = async () => {
@@ -654,9 +705,41 @@ async function renderIntegrationsPane(pane, ctx) {
         apiVersion: card.querySelector('[data-apiver]')?.value,
         baseUrl: card.querySelector('[data-base]')?.value
       });
-      toast(`Connected · ${j.provider} / ${j.model}`);
-    } catch (err) { toast(err.message, 'error'); }
+      toast(`Connected · ${label(j.provider)} / ${j.model}${j.ms ? ` · ${dur(j.ms)}` : ''}`);
+      if (existing && !card.querySelector('[data-key]').value) renderIntegrationsPane(pane, ctx); // shows the stored test result
+    } catch (err) { toast(err.message, 'error'); if (existing && !card.querySelector('[data-key]').value) renderIntegrationsPane(pane, ctx); }
     finally { btn.disabled = false; }
+  });
+  pane.querySelectorAll('[data-remove-prof]').forEach(btn => btn.onclick = async () => {
+    const card = btn.closest('[data-prov]'), provider = card.dataset.prov, existing = (status.profiles || []).find(x => x.provider === provider);
+    if (!existing) return;
+    const users = caps.filter(cap => Domain.aiCapRoute(cap).provider === provider).map(cap => CAP_LABEL[cap] || cap);
+    if (!(await confirmDialog(`Remove the ${label(provider)} API key from the server?${users.length ? ` These features are set to use ${label(provider)} and will stop working (or use the fallback provider) until another key or provider is set: ${users.join(', ')}.` : ''} Course content and settings are not changed.`, { title: `Remove ${label(provider)}`, confirmText: 'Remove key', danger: true }))) return;
+    try { await SDCAI.configure({ profileId: existing.id, provider, remove: true }); toast(`${label(provider)} key removed.`); renderIntegrationsPane(pane, ctx); }
+    catch (err) { toast(err.message, 'error'); }
+  });
+  // Groq's own list for this key (saved, or pasted and not yet saved); fills every Groq model field.
+  // With a saved Groq key the list is loaded when the page opens (from the server's 10-minute cache), quietly.
+  const loadModels = async (btn, { fresh = true, quiet = false } = {}) => {
+    const card = btn.closest('[data-prov]'), info = card.querySelector('[data-model-info]');
+    const existing = (status.profiles || []).find(x => x.provider === 'groq');
+    btn.disabled = true; info.textContent = 'Loading…';
+    try {
+      const j = await SDCAI.models({ provider: 'groq', profileId: existing?.id, apiKey: card.querySelector('[data-key]').value || undefined, fresh });
+      const list = j.models || [];
+      pane.querySelector('#groq-models').innerHTML = list.map(m => `<option value="${esc(m.id)}">${esc(`${m.ownedBy ? m.ownedBy + ' · ' : ''}${m.contextWindow ? Math.round(m.contextWindow / 1000) + 'k context' : ''}${m.maxOutput ? ` · up to ${m.maxOutput.toLocaleString('en')} out` : ''}`)}</option>`).join('');
+      const pick = card.querySelector('[data-model]');
+      const show = () => { const m = list.find(x => x.id === pick.value.trim()); info.textContent = m ? `${m.id}: ${m.contextWindow ? m.contextWindow.toLocaleString('en') + '-token context' : 'context not stated'}${m.maxOutput ? `, answers up to ${m.maxOutput.toLocaleString('en')} tokens` : ''}.` : `${list.length} text model${list.length === 1 ? '' : 's'} available for this key${j.other?.length ? ` (${j.other.length} speech, safety or agent model${j.other.length === 1 ? '' : 's'} not shown)` : ''}. Choose one in the model field.`; };
+      pick.oninput = show; show();
+    } catch (err) { info.textContent = err.message; if (!quiet) toast(err.message, 'error'); }
+    finally { btn.disabled = false; }
+  };
+  const loadBtn = pane.querySelector('[data-load-models]');
+  loadBtn?.addEventListener('click', e => loadModels(e.currentTarget));
+  if (loadBtn && (status.profiles || []).some(x => x.provider === 'groq')) loadModels(loadBtn, { fresh: false, quiet: true });
+  pane.querySelectorAll('[data-cap-prov]').forEach(sel => sel.onchange = () => {
+    const input = sel.closest('tr').querySelector('[data-cap-model]');
+    if (sel.value === 'groq') input.setAttribute('list', 'groq-models'); else input.removeAttribute('list');
   });
   pane.querySelector('[data-save-map]')?.addEventListener('click', () => {
     const d = db();
@@ -724,7 +807,7 @@ App.route('/settings', { perm: 'settings', render(ctx) {
     ] },
     features: { section: 'features', fields: Object.keys(DEFAULT_SETTINGS.features).map(k => ({ name: k, label: k, type: 'checkbox', checkLabel: {
       attendance: 'Attendance tracking', results: 'Results & grading', certificates: 'Certificates & verification', fees: `${t('fees')} & payments`, messages: 'Private messaging', announcements: 'Announcements', calendar: 'Training calendar', feedback: 'Mid-course feedback prompts',
-      ai: 'SDC Learn AI (master)', quizzes: 'Graded quizzes', aiTutor: 'AI Tutor', aiSummarize: 'Resource summarizer', aiPractice: 'Private practice quizzes', aiEvaluate: 'Assignment evaluator', aiQuizGen: 'Quiz generator', aiAtRisk: 'At-risk advisories'
+      ai: 'SDC Learn AI (master)', quizzes: 'Graded quizzes', aiTutor: 'AI Tutor', aiSummarize: 'Resource summarizer', aiPractice: 'Private practice quizzes', aiEvaluate: 'Assignment evaluator', aiQuizGen: 'Quiz generator', aiAtRisk: 'At-risk advisories', courseGen: 'AI course generator ("Generate with SDC Learn AI" on the courses page, and session content in the Course Builder)'
     }[k] || k })) }
   };
   ctx.root.innerHTML = `${pageHead('Settings', 'Everything here is applied instantly across the platform — no code changes needed.')}
@@ -737,12 +820,12 @@ App.route('/settings', { perm: 'settings', render(ctx) {
   if (tab === 'data') {
     const d = db(), size = new Blob([localStorage.getItem(DBKEY) || '']).size;
     pane.innerHTML = `<div class="grid-2"><div class="card"><h3>Backup & restore</h3><p class="small muted">Download a JSON backup of every record and setting, or restore from a previous backup.</p><div class="row gap-sm wrap"><button class="btn btn-secondary" data-backup>${icon('download', 16)} Download backup</button><label class="btn btn-ghost file-btn" ${can('settings', 'edit') ? '' : 'hidden'}>${icon('upload', 16)} Restore backup<input type="file" accept=".json,application/json" hidden data-restore></label></div></div>
-      <div class="card"><h3>Storage</h3><dl class="facts"><div><dt>Local data size</dt><dd>${fmtSize(size)}</dd></div><div><dt>Records</dt><dd>${sum(COLLECTIONS, k => d[k].length)}</dd></div><div><dt>Cloud sync</dt><dd>${esc(window.SDC_CLOUD_STATUS || 'Not configured')}</dd></div><div><dt>Upload server</dt><dd data-health>Checking…</dd></div></dl></div>
+      <div class="card"><h3>Storage</h3><dl class="facts"><div><dt>Local data size</dt><dd>${fmtSize(size)}</dd></div><div><dt>Records</dt><dd>${sum(COLLECTIONS, k => d[k].length)}</dd></div><div><dt>Browser storage</dt><dd>${(() => { const u = window.SDCCloud?.usage?.(); return u ? `${u.pct}% of about ${fmtSize(u.limit)} used` : 'Unknown'; })()}</dd></div><div><dt>Cloud sync</dt><dd>${esc(window.SDC_CLOUD_STATUS || 'Not configured')}</dd></div><div><dt>Upload server</dt><dd data-health>Checking…</dd></div></dl></div>
       <div class="card danger-zone" ${can('settings', 'edit') ? '' : 'hidden'}><h3>Reset demo data</h3><p class="small muted">Restore the original ${esc(brand().orgShort)} demo catalogue. All current records are replaced.</p><button class="btn btn-danger" data-reset>${icon('trash', 16)} Reset to demo data</button></div></div>`;
-    pane.querySelector('[data-backup]').onclick = () => downloadBlob(`${slugify(brand().productName)}-backup-${todayISO()}.json`, JSON.stringify(db(), null, 2), 'application/json');
+    pane.querySelector('[data-backup]').onclick = () => downloadBlob(`${slugify(brand().productName)}-backup-${todayISO()}.json`, JSON.stringify({ ...db(), _sync: undefined }, null, 2), 'application/json');
     pane.querySelector('[data-restore]').onchange = async e => {
       const f = e.target.files[0]; if (!f) return;
-      try { const data = JSON.parse(await f.text()); if (!Array.isArray(data.users) || !data.users.length) throw new Error('This file is not a valid backup.'); if (!(await confirmDialog('Replace all current data with this backup?', { danger: true, confirmText: 'Restore' }))) return; saveDB(data); toast('Backup restored.'); setTimeout(() => location.reload(), 500); }
+      try { const data = JSON.parse(await f.text()); if (!Array.isArray(data.users) || !data.users.length) throw new Error('This file is not a valid backup.'); if (!(await confirmDialog('Replace all current data with this backup?', { danger: true, confirmText: 'Restore' }))) return; saveDB(window.SDCCloud?.carryBase ? SDCCloud.carryBase(db(), data) : data); toast('Backup restored.'); setTimeout(() => location.reload(), 500); }
       catch (err) { toast(err.message || 'Could not read backup.', 'error'); }
     };
     pane.querySelector('[data-reset]').onclick = async () => { if (await confirmDialog('Reset all data to the demo catalogue? This cannot be undone.', { danger: true, confirmText: 'Reset' })) { resetDemoData(); window.SDCCloud?.syncNow?.(); toast('Demo data restored.'); setTimeout(() => location.reload(), 500); } };
@@ -765,6 +848,7 @@ App.route('/settings', { perm: 'settings', render(ctx) {
     e.preventDefault();
     const r = readForm(form, g.fields);
     const miss = g.fields.find(f => f.required && !r[f.name]); if (miss) return toast(`${miss.label} is required.`, 'error');
+    if (tab === 'auth' && r.googleSignUpRole && r.googleSignUpRole !== settings().auth.googleSignUpRole && !coversRole(findRecord('roles', r.googleSignUpRole))) return toast(CEILING_MSG, 'error');
     if (tab === 'learning') { const w = Number(r.weightAssignments) + Number(r.weightAssessment) + Number(r.weightQuiz || 0) + Number(r.weightAttendance); if (w <= 0) return toast('At least one result weight must be greater than zero.', 'error'); r.allowedTypes = csvList(r.allowedTypes).join(','); }
     const d = db(); d.settings[g.section] = { ...d.settings[g.section], ...r }; saveDB(d);
     // Rebuild the shell first: mountShell replaces the page, which used to wipe the confirmation toast.

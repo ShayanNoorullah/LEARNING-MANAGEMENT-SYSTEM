@@ -45,7 +45,19 @@
       <div class="fc fc-cert"><span class="fc-award">${icon('award', 18)}</span><div><b>Certificate verified</b><small class="fc-muted">${esc(lms().certificatePrefix)}-${new Date().getFullYear()}-0001</small></div>${icon('check', 16)}</div>`;
   }
 
-  const showError = msg => { const err = $('#loginError'); err.textContent = msg; err.hidden = false; const c = $('.auth-card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); };
+  // Unsent changes of an earlier session that could not be set aside (browser storage full): the person
+  // downloads them, or chooses to discard them. Never discarded silently.
+  function showUnsaved(ex) {
+    showError(ex.message);
+    const err = $('#loginError');
+    err.insertAdjacentHTML('beforeend', ' <button type="button" class="btn btn-secondary btn-sm" data-dl>Download unsaved changes</button> <button type="button" class="btn btn-ghost btn-sm" data-discard>Discard them and continue</button>');
+    err.querySelector('[data-dl]').onclick = () => {
+      const data = SDCCloud.unsavedExport() || { note: 'Full copy of the data in this browser.', state: db() };
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); a.download = 'sdc-learn-unsaved-changes.json'; document.body.appendChild(a); a.click(); a.remove();
+    };
+    err.querySelector('[data-discard]').onclick = () => { SDCCloud.discardUnsaved(); err.hidden = true; toast('The unsaved changes were discarded. You can sign in now.', 'warning'); };
+  }
+  const showError = msg => { const err = $('#loginError'); err.className = 'alert alert-danger'; err.textContent = msg; err.hidden = false; const c = $('.auth-card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); };
 
   /* Sign in with Google via Supabase Auth. Google proves who the person is; the platform account
      (role, permissions, courses) is found by email. Unknown emails are refused unless Settings →
@@ -87,7 +99,7 @@
       } catch (e) {
         await client.auth.signOut().catch(() => {});
         const btn = $('#googleBtn'); btn.disabled = false; btn.querySelector('span').textContent = 'Continue with Google';
-        return showError(e.message);
+        return e.code === 'unsaved_changes' ? showUnsaved(e) : showError(e.message);
       }
     }
     const email = String(gUser.email).toLowerCase(), meta = gUser.user_metadata || {};
@@ -112,7 +124,10 @@
     if (currentUser()) { location.replace('app.html'); return; }
     setupGoogle();
     paint();
-    window.SDCCloud?.gateway?.().then(on => on && SDCCloud.publicSettings().then(s => { const d = db(); d.settings = s; localStorage.setItem(DBKEY, JSON.stringify(normalizeState(d))); invalidateCache(); paint(); })).catch(() => {});
+    // The sign-in expired while work was open: say what will happen to it.
+    if (new URLSearchParams(location.search).has('expired') && window.SDCCloud?.hasPending?.()) { const note = $('#loginError'); note.className = 'alert alert-warning'; note.textContent = 'Your sign-in expired. Sign in as the same account and your unsaved changes will be restored and saved.'; note.hidden = false; }
+    // Not while changes are waiting to be saved: this would rewrite the copy that holds them.
+    window.SDCCloud?.gateway?.().then(on => on && !window.SDCCloud.hasPending() && SDCCloud.publicSettings().then(s => { const d = db(); d.settings = s; localStorage.setItem(DBKEY, JSON.stringify(normalizeState(d))); invalidateCache(); paint(); })).catch(() => {});
     window.addEventListener('sdc-cloud-refresh', paint);
     const err = $('#loginError'), btn = $('#loginBtn');
     const show = showError;
@@ -136,7 +151,7 @@
             if ($('#remember').checked) localStorage.setItem('sdcRemember', uid); else localStorage.removeItem('sdcRemember');
             updateRecord('users', uid, { lastLoginAt: new Date().toISOString() });
             location.href = 'app.html';
-          } catch (ex) { show(ex.message); btn.disabled = false; btn.textContent = 'Sign in'; pw.select(); }
+          } catch (ex) { if (ex.code === 'unsaved_changes') showUnsaved(ex); else show(ex.message); btn.disabled = false; btn.textContent = 'Sign in'; pw.select(); }
           return;
         }
         invalidateCache();

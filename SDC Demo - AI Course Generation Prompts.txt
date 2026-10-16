@@ -1,0 +1,31 @@
+STEP 1 - Course topic or working title
+
+Python for Data Analysis
+
+
+STEP 2 - Target audience
+
+Fresh graduates and working professionals in Karachi who use Excel at work and want to start analysing data with Python. They have basic computer skills but have never written code.
+
+
+STEP 3 - What learners should be able to do at the end
+
+Write basic Python programs; load, clean and summarise data from Excel and CSV files with pandas; create clear charts with Matplotlib; and present the findings of a small data analysis project.
+
+
+STEP 4 - Tools or software used
+
+Python 3, Jupyter Notebook, pandas, Matplotlib, Microsoft Excel
+
+
+STEP 5 - Source material
+
+1. Python basics for analysts: variables, data types, lists, dictionaries, loops and functions in Jupyter Notebook.
+2. Working with data in pandas: reading CSV and Excel files, selecting rows and columns, filtering and sorting.
+3. Cleaning and summarising data: missing values, duplicates, data types, groupby and pivot tables.
+4. Visualising and presenting results: bar, line and pie charts with Matplotlib, and a short final analysis project on a sales dataset.
+
+
+STEP 6 - Course code
+
+PDA-101

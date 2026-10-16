@@ -257,6 +257,7 @@ App.route('/course/:id/session/:sid', { perm: ['learn', 'courses'], render(ctx) 
       <div class="stack">
         ${videoBlock(s, unlocked)}
         ${unlocked && s.summary ? `<div class="card"><h3>About this ${t('session', true)}</h3><p>${esc(s.summary)}</p></div>` : ''}
+        ${typeof tcSessionBlock === 'function' ? tcSessionBlock(course, s, u, { unlocked, preview: !isLearner && ctx.query.view === 'learner' }) : ''}
 
       </div>
       <aside class="stack">

@@ -50,6 +50,9 @@ function userPage(ctx, base) {
       if (d.password && d.password.length < 8) throw new Error('Password must be at least 8 characters.');
       if (!roleOf(d.role) || !db().roles.some(r => r.id === d.role)) throw new Error('Choose a valid role.');
       if (rec?.id === ctx.user.id && d.role !== rec.role) throw new Error('You cannot change your own role.');
+      // Role ceiling: assigning a role, or a new password or email (signing in as the account), needs your role to cover theirs.
+      if (rec && rec.id !== ctx.user.id && (d.password || email !== String(rec.email).toLowerCase() || d.role !== rec.role) && !coversRole(roleOf(rec))) throw new Error(`You cannot change ${rec.name}'s role, password or email: their role has permissions your own role does not have.`);
+      if (rec?.id !== ctx.user.id && d.role !== rec?.role && !coversRole(findRecord('roles', d.role))) throw new Error(CEILING_MSG);
       const out = { ...d, email };
       delete out.password;
       if (d.password) { out.salt = randomToken(8); out.passwordHash = hashPassword(d.password, out.salt); out.demo = false; }
@@ -59,7 +62,7 @@ function userPage(ctx, base) {
     afterSave: (u, isNew) => { if (isNew) notify(u.id, `Welcome to ${brand().productName}`, `Your ${roleLabel(u).toLowerCase()} account is ready.`, 'Account', '#/profile'); },
     deleteMessage: u => `Delete ${u.name}'s account? Their enrollments, progress, submissions and attendance are removed. Consider setting the status to Inactive instead.`,
     // Fee records are financial history, so an account that has them is deactivated rather than deleted.
-    beforeDelete: u => { if (u.id === ctx.user.id) throw new Error('You cannot delete your own account.'); if (db().fees.some(f => f.learnerId === u.id)) throw new Error(`${u.name} has ${t('fee', true)} records. Set the status to Inactive instead of deleting.`); },
+    beforeDelete: u => { if (u.id === ctx.user.id) throw new Error('You cannot delete your own account.'); if (u.role === 'admin' && ctx.user.role !== 'admin') throw new Error(`Only a ${roleLabel('admin')} can delete ${u.name}'s account.`); if (db().fees.some(f => f.learnerId === u.id)) throw new Error(`${u.name} has ${t('fee', true)} records. Set the status to Inactive instead of deleting.`); },
     afterDelete: u => { const d = db(); ['enrollments', 'progress', 'submissions', 'attendance', 'results', 'certificates', 'feedback'].forEach(k => d[k] = d[k].filter(x => x.learnerId !== u.id)); d.notifications = d.notifications.filter(n => n.userId !== u.id); d.messages = d.messages.filter(m => m.from !== u.id && m.to !== u.id); d.batches.forEach(b => { if (b.instructorId === u.id) b.instructorId = ''; }); saveDB(d); }
   });
 }
@@ -147,6 +150,7 @@ function roleModal(rec, done) {
     if (rec?.system) r.base = rec.base;
     if (r.courseScope !== 'selected') r.courseIds = [];
     const data = { ...r, permissions: locked ? {} : permissions };
+    if (!coversRole({ ...rec, ...data, id: rec?.id || '' })) return toast(CEILING_MSG, 'error');
     if (isNew) addRecord('roles', { ...data, id: slugify(r.name) && !findRecord('roles', slugify(r.name)) ? slugify(r.name) : uid('ROLE'), system: false });
     else updateRecord('roles', rec.id, data);
     m.close(); toast(isNew ? 'Role created.' : 'Role updated.'); App.renderNav(App.currentPath); done?.();

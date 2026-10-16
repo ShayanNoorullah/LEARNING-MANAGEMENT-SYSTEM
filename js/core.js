@@ -54,7 +54,8 @@ const DEFAULT_SETTINGS = {
   },
   features: {
     attendance: true, results: true, certificates: true, fees: true, messages: true, announcements: true, calendar: true, feedback: true,
-    ai: true, quizzes: true, aiTutor: true, aiSummarize: true, aiPractice: true, aiEvaluate: true, aiQuizGen: true, aiAtRisk: true
+    ai: true, quizzes: true, aiTutor: true, aiSummarize: true, aiPractice: true, aiEvaluate: true, aiQuizGen: true, aiAtRisk: true,
+    courseGen: false // AI course generator: off until the team turns it on (Settings → Features)
   },
   auth: { googleEnabled: true, googleSignUpRole: '' },
   general: { pageSize: 10 },
@@ -76,7 +77,11 @@ const DEFAULT_SETTINGS = {
       quizCheck: { provider: 'openai', model: '', profileId: '', temperature: 0.1 },
       evaluate: { provider: 'gemini', model: '', profileId: '', temperature: 0.2 },
       atRisk: { provider: 'openai', model: '', profileId: '', temperature: 0.2 },
-      sessionAssist: { provider: 'openai', model: '', profileId: '', temperature: 0.3 }
+      sessionAssist: { provider: 'openai', model: '', profileId: '', temperature: 0.3 },
+      courseGenerate: { provider: 'openai', model: '', profileId: '', temperature: 0.4 },
+      // provider '' = use the capability named in `inherit`, so an existing setup keeps its provider.
+      courseContent: { provider: '', model: '', profileId: '', temperature: 0.4, inherit: 'courseGenerate' },
+      contentRepair: { provider: '', model: '', profileId: '', temperature: 0.4, inherit: 'courseContent' }
     }
   }
 };
@@ -110,9 +115,12 @@ function db() {
   _cache = state;
   return state;
 }
+// A failed write is never hidden: the person is told, the sync status turns to "storage" (a banner with
+// "Save to server" and "Download backup", js/sync-ui.js) and the error is thrown so the caller can undo.
 function persist(state) {
   try { localStorage.setItem(DBKEY, JSON.stringify(state)); }
-  catch (e) { toast('Browser storage is full. Remove large inline files or connect the upload server.', 'error'); throw e; }
+  catch (e) { window.SDCCloud?.storageFailed?.(e); toast('This browser has no room left, so this change was NOT stored. Save to the server or download a backup from the banner at the top.', 'error'); throw e; }
+  window.SDCCloud?.storageOk?.();
 }
 function saveDB(state) {
   // In-place edits reuse the live cache — skip full deepMerge/clone on every keystroke.
@@ -142,7 +150,8 @@ function updateRecord(key, id, patch) {
 }
 function deleteRecord(key, id) { const d = db(); d[key] = d[key].filter(x => x.id !== id); saveDB(d); }
 function findRecord(key, id) { return db()[key].find(x => x.id === id); }
-function resetDemoData() { localStorage.removeItem(DBKEY); localStorage.removeItem('sdcCloudUpdatedAt'); _cache = null; db(); }
+// The reset copy keeps the cloud sync base (js/cloud-sync.js), so its save replaces what the old copy had.
+function resetDemoData() { const old = db(); localStorage.removeItem(DBKEY); localStorage.removeItem('sdcCloudUpdatedAt'); _cache = null; const d = db(); if (window.SDCCloud?.carryBase) { SDCCloud.carryBase(old, d); persist(d); } }
 
 /* ---------------------------------------------------------- configuration */
 function settings() { return db().settings; }
@@ -190,6 +199,9 @@ function can(module, action = 'view', user = (typeof App !== 'undefined' ? App.u
   return (r.permissions?.[module] || []).includes(action);
 }
 function scopeAll(user) { return roleOf(user)?.courseScope === 'all'; }
+// Role ceiling (js/shared-rules.js, enforced by the server): only the built-in admin grants beyond its own role.
+function coversRole(role, user = (typeof App !== 'undefined' ? App.user : null) || currentUser()) { return typeof SharedRules === 'undefined' || SharedRules.covers(roleOf(user), role, db().roles.find(r => r.id === 'student')); }
+const CEILING_MSG = 'Your own role does not have all of these permissions or this course access, so you cannot grant them.';
 function pairs(str) { return String(str || '').split('|').filter(Boolean).map(p => { const [v, l] = p.split(':'); return { value: v.trim(), label: (l || v).trim() }; }); }
 function pairLabel(str, value) { return pairs(str).find(p => p.value === value)?.label || value || '—'; }
 function csvList(str) { return String(str || '').split(',').map(x => x.trim().toLowerCase().replace(/^\./, '')).filter(Boolean); }
@@ -301,7 +313,16 @@ function loadSupabase() {
     document.head.appendChild(s);
   });
 }
-async function logout() { try { await window.SDCCloud?.flushNow?.(); } catch (e) {} window.SDCCloud?.signOut?.(); sessionStorage.removeItem('sdcSession'); localStorage.removeItem('sdcRemember'); location.href = 'login.html'; }
+async function logout() {
+  try { await window.SDCCloud?.flushNow?.(); } catch (e) {}
+  // Changes the server has not confirmed are set aside for this account (restored when it signs in again). If
+  // they cannot be kept, a copy is downloaded and the person decides; they are never dropped silently.
+  const kept = window.SDCCloud?.beforeSignOut?.();
+  if (kept && !kept.ok) {
+    try { window.SDCSyncUI?.download?.(); } catch (e) {}
+    if (!(await confirmDialog('Some changes were not saved to the server and could not be kept in this browser. A copy was downloaded. Sign out anyway and discard them?', { title: 'Unsaved changes', confirmText: 'Sign out and discard', danger: true }))) return;
+  }
+  window.SDCCloud?.signOut?.(); try { Object.keys(sessionStorage).filter(k => k.startsWith('sdcCourseGen:')).forEach(k => sessionStorage.removeItem(k)); } catch (e) {} sessionStorage.removeItem('sdcSession'); localStorage.removeItem('sdcRemember'); location.href = 'login.html'; }
 
 /* --------------------------------------------------------------- helpers */
 function esc(v = '') { return String(v ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m])); }
@@ -459,40 +480,9 @@ const Domain = {
   batchQuizzes(batchId) { return batchId ? db().quizzes.filter(q => q.batchId === batchId).sort((a, b) => String(a.title).localeCompare(String(b.title))) : []; },
   learnerQuizzes(learnerId, courseId) { return Domain.batchQuizzes(Domain.learnerBatchId(learnerId, courseId)).filter(q => q.status === 'published'); },
   quizQuestions(quiz) { const ids = quiz?.questionIds || []; return ids.map(id => findRecord('questions', id)).filter(Boolean); },
-  scoreObjective(question, answer) {
-    if (!question) return { correct: false, points: 0 };
-    const pts = Number(question.points) || 1;
-    if (question.type === 'mcq_single' || question.type === 'true_false') {
-      const ok = String(answer) === String((question.options || []).find(o => o.correct)?.id);
-      return { correct: ok, points: ok ? pts : 0 };
-    }
-    if (question.type === 'mcq_multi') {
-      const correct = new Set((question.options || []).filter(o => o.correct).map(o => o.id));
-      const picked = new Set(Array.isArray(answer) ? answer : (answer ? [answer] : []));
-      const ok = correct.size === picked.size && [...correct].every(id => picked.has(id));
-      return { correct: ok, points: ok ? pts : 0 };
-    }
-    return { correct: null, points: null }; // short — AI / instructor
-  },
-  gradeQuizAttempt(quiz, answers, aiReviews = {}) {
-    const qs = Domain.quizQuestions(quiz);
-    let score = 0, maxScore = 0, pending = false;
-    const detail = {};
-    qs.forEach(q => {
-      const pts = Number(q.points) || 1;
-      maxScore += pts;
-      if (q.type === 'short') {
-        const rev = aiReviews[q.id];
-        if (rev && rev.points != null) { score += Number(rev.points); detail[q.id] = { ...rev, type: 'short' }; }
-        else pending = true;
-      } else {
-        const r = Domain.scoreObjective(q, answers?.[q.id]);
-        score += r.points || 0;
-        detail[q.id] = r;
-      }
-    });
-    return { score, maxScore, percent: maxScore ? Math.round((score / maxScore) * 100) : 0, pending, detail };
-  },
+  // Scoring lives in js/shared-rules.js so the server grades a submitted attempt the same way.
+  scoreObjective(question, answer) { return SharedRules.scoreObjective(question, answer); },
+  gradeQuizAttempt(quiz, answers, aiReviews = {}) { return SharedRules.gradeAttempt(Domain.quizQuestions(quiz), answers, aiReviews); },
   quizAverage(learnerId, courseId) {
     const quizzes = Domain.learnerQuizzes(learnerId, courseId);
     if (!quizzes.length) return null;
@@ -523,6 +513,14 @@ const Domain = {
   integrations() { return settings().integrations || DEFAULT_SETTINGS.integrations; },
   aiEnabled() { return feature('ai') && Domain.integrations().aiEnabled !== false; },
   aiCap(name) { return (Domain.integrations().capabilities || {})[name] || {}; },
+  // The provider, model and profile a capability uses: its own, or (provider '') those of the capability
+  // it inherits from, e.g. content repair -> course content -> course outline. Temperature stays its own.
+  aiCapRoute(name) {
+    const own = Domain.aiCap(name);
+    let cap = own, from = '';
+    for (let i = 0, seen = new Set([name]); !cap.provider && cap.inherit && !seen.has(cap.inherit) && i < 4; i++) { from = cap.inherit; seen.add(from); cap = Domain.aiCap(from); }
+    return { ...cap, temperature: own.temperature ?? cap.temperature, inheritedFrom: from };
+  },
   refreshAtRiskFlags() {
     if (!feature('aiAtRisk')) return [];
     const flags = [];

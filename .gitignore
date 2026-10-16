@@ -7,6 +7,8 @@ backend/uploads/
 backend/data/ai-secrets.json
 backend/data/ai-usage.json
 *.log
+# Local PostgreSQL cluster and generated dev secret (scripts/localdb/cli.js)
+.localdb/
 .DS_Store
 Thumbs.db
 .env*

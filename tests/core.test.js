@@ -10,9 +10,9 @@ const ctx = {
 };
 ctx.window = ctx; ctx.window.addEventListener = () => {}; ctx.window.dispatchEvent = () => {};
 vm.createContext(ctx);
-const src = ['seed.js', 'migrations.js', 'core.js'].map(f => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8')).join(';\n');
-vm.runInContext(src + ';globalThis.migrateState=migrateState;globalThis.__x={db,can,kind,Domain,verifyPassword,addRecord,findRecord,endDateFor}', ctx, { filename: 'core-bundle.js' });
-const { db, can, kind, Domain, verifyPassword, addRecord, findRecord, endDateFor } = ctx.__x;
+const src = ['seed.js', 'migrations.js', 'shared-rules.js', 'core.js'].map(f => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8')).join(';\n');
+vm.runInContext(src + ';globalThis.migrateState=migrateState;globalThis.__x={db,can,kind,Domain,verifyPassword,addRecord,findRecord,endDateFor,coversRole}', ctx, { filename: 'core-bundle.js' });
+const { db, can, kind, Domain, verifyPassword, addRecord, findRecord, endDateFor, coversRole } = ctx.__x;
 const u = id => findRecord('users', id);
 
 // built-in roles
@@ -63,4 +63,10 @@ assert.ok(old4.courses.every(c => !c.instructorIds), 'course-level instructors r
 // Learners see only their own batch's work: Usman (weekend batch) never gets the evening batch's assignments.
 assert.deepEqual(Domain.learnerAssignments('u-usman', 'C-EXCEL').map(a => a.id), ['A-EX-W1']);
 assert.ok(!Domain.learnerAssignments('u-ali', 'C-EXCEL').some(a => a.id === 'A-EX-W1'), 'evening learner does not see weekend work');
+// D3: quiz scoring and the role ceiling come from js/shared-rules.js, the same code the server runs.
+const Rules = require('../js/shared-rules.js'), quiz = db().quizzes[0], qs = Domain.quizQuestions(quiz);
+const right = Object.fromEntries(qs.filter(q => q.type !== 'short').map(q => [q.id, q.type === 'mcq_multi' ? q.options.filter(o => o.correct).map(o => o.id) : q.options.find(o => o.correct).id]));
+assert.deepEqual(JSON.parse(JSON.stringify(Domain.gradeQuizAttempt(quiz, right, {}))), Rules.gradeAttempt(JSON.parse(JSON.stringify(qs)), right, {}), 'browser and server score the same');
+assert.ok(Domain.gradeQuizAttempt(quiz, right, {}).score > 0);
+assert.ok(coversRole(findRecord('roles', 'teacher'), u('u-admin')) && !coversRole(findRecord('roles', 'admin'), u('u-accounts')) && !coversRole(findRecord('roles', 'teacher'), u('u-accounts')), 'role ceiling in the browser');
 console.log('core.test.js: all checks passed');
