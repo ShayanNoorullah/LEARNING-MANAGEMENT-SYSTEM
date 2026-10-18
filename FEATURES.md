@@ -333,7 +333,7 @@ A different session count after the retry is shown as returned (nothing is added
 
 **Demo mode.** On a developer machine, `SDC_AI_MOCK=1` (never honoured on Vercel or with `NODE_ENV=production`) lets the server answer course generation with a built-in sample outline when **no provider is configured**. Everything it produces is labelled: a "Demo mode … not written by AI" banner, "Demo sample (not AI)" on the review screen and the course (`aiMeta.mock: true`, provider `mock-demo`), and the sample's description says so. A configured provider always wins over demo mode.
 
-## 10. Roles and permissions### AI course content builder
+### AI course content builder
 Turns an existing course (usually an AI draft) into complete written teaching material, one session at a time. It never regenerates the outline: session titles, summaries and modules are not written by it, and nothing is published, enrolled, priced or assigned.
 
 **Who and when.** Course Builder → **Content** tab, for anyone who may manage the course (`courses:edit` plus course scope). Generating needs `ai:use`, **Settings → Features → "AI course generator" on** and the AI master switch; the server checks `courses:edit` and the switch for every request (`feature: 'courseContent'`). Without them the tab still shows, reviews and edits existing content.
@@ -380,6 +380,8 @@ Each part sees the course description, outcomes, the whole outline (to build on 
 **Completeness.** "N of M required items present", counted from what is stored, never estimated: per session the objectives, prerequisites, 3+ lesson sections, worked examples, a tutorial, code examples (only where the topic needs code), a demonstration, a guided exercise, a practice task, a homework brief, a quiz of 5+ answered questions, instructor notes and a time plan within 5 minutes of the session length; for the course every outcome taught, a capstone, an up-to-date course check (it goes out of date when what the check reads changes: course title and outcomes, session titles, summaries, lengths, objectives, lesson headings or instructions; edits to timings, quizzes or notes and downloading the same course again leave it current) and no open essential gap. The missing items are listed. The Overview checklist shows "Teaching content complete" for AI courses and courses that have content.
 
 
+
+## 10. Roles and permissions
 
 Every role combines three independent parts.
 
