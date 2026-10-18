@@ -94,9 +94,9 @@ const supa = http.createServer((req, res) => {
 
   /* ---------------- 06 integrations ---------------- */
   await boot('u-admin', '#/settings?tab=integrations');
-  await tc('AI-INT-01', () => run(p, `await until(()=>$('[data-prov]')); if($$('[data-prov]').length!==3) throw new Error('provider cards: '+$$('[data-prov]').length);`));
+  await tc('AI-INT-01', () => run(p, `await until(()=>$('[data-prov]')); if($$('[data-prov]').length!==4||!$('[data-prov="groq"]')) throw new Error('provider cards: '+$$('[data-prov]').length);`));
   await tc('AI-INT-10', () => run(p, `const c=$('[data-prov="openai"]'); c.querySelector('[data-key]').value='sk-wrong-key-123'; c.querySelector('[data-base]').value='${MOCK}'; c.querySelector('[data-test-prov]').click();
-    const t=await until(()=>toasts()); if(!/Incorrect API key|error/i.test(t)) throw new Error('no error toast: '+t);`));
+    const t=await until(()=>toasts()); if(!/Incorrect API key|rejected the API key|error/i.test(t)) throw new Error('no error toast: '+t);`));
   await tc('AI-INT-03', () => run(p, `const c=$('[data-prov="openai"]'); c.querySelector('[data-key]').value='sk-test-mock-0001'; c.querySelector('[data-model]').value='gpt-4o-mini'; c.querySelector('[data-base]').value='${MOCK}'; c.querySelector('[data-save-prof]').click();
     await until(()=>/Configured/.test($('[data-prov="openai"]')?.innerText||'')); const t=$('[data-prov="openai"]').innerText; if(!/Configured/.test(t)||!/sk-…0001/.test(t)) throw new Error('not configured/masked: '+t.slice(0,120));`));
   await tc('AI-INT-04', () => run(p, `$$('.toast').forEach(t=>t.remove()); $('[data-prov="openai"] [data-test-prov]').click(); const t=await until(()=>toasts()); if(!/Connected/.test(t)) throw new Error(t);`));

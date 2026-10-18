@@ -13,10 +13,9 @@ Other references:
 
 ## Git workflow
 
-- Push only to the `Noman` branch (`origin/Noman`).
-- Never push to `main`.
-- Never open a pull request to merge into `main`. This repo does not merge `Noman` into `main` on GitHub.
-- If work is on any other branch, move it to `Noman` before pushing.
+- Develop on a feature branch (for example `Noman`) and push there.
+- `main` is the release branch: every push to it deploys to production (Vercel). Do not push to `main` or open pull requests into it on your own; changes reach `main` only when the project owner asks for a merge.
+- Before a merge into `main`: `npm run check`, `npm test` and the browser suites in [RUN.md](RUN.md) must pass, and any database migration it needs must already be applied to the live Supabase project (see [supabase/MIGRATIONS.md](supabase/MIGRATIONS.md)).
 
 ## What the project is
 
