@@ -368,7 +368,7 @@ function builderContent(pane, course, ctx) {
         <div class="row-between wrap gap-sm"><div><h3>Course content ${icon('sparkles', 15)}</h3><p class="muted small">Complete written teaching material for every ${esc(t('session', true))}: objectives, lesson, tutorials, code, exercises, a homework brief, a quiz and notes for the ${esc(t('instructor', true))}. Generated in small parts and saved after each part. ${c.status === 'published' ? '' : `The ${esc(t('course', true))} is a draft, so ${esc(t('learners', true))} see none of it.`}</p></div>
           <div class="row gap-sm wrap">${run?.active
             ? `<button class="btn btn-ghost btn-sm" data-stop ${run.stop ? 'disabled' : ''}>${run.stop ? 'Stopping…' : 'Stop'}</button>`
-            : allowed && list.length ? `<button class="btn btn-primary btn-sm" data-gen-all ${missing.length ? '' : 'disabled'}>${icon('sparkles', 15)} ${list.some(s => s.content) ? (missing.length ? `Generate missing content (${missing.length})` : 'All content generated') : 'Generate Full Course Content with AI'}</button>` : ''}</div></div>
+            : allowed && list.length ? `${list.some(s => !s.videoUrl) ? `<button class="btn btn-secondary btn-sm" data-find-videos>${icon('video', 15)} Find YouTube videos (${list.filter(s => !s.videoUrl).length})</button>` : ''}<button class="btn btn-primary btn-sm" data-gen-all ${missing.length ? '' : 'disabled'}>${icon('sparkles', 15)} ${list.some(s => s.content) ? (missing.length ? `Generate missing content (${missing.length})` : 'All content generated') : 'Generate Full Course Content with AI'}</button>` : ''}</div></div>
         <div class="tc-routeline" data-route-line></div>
         ${run ? tcRunPanel(run) : ''}
         <div class="tc-usage small muted">${use.calls ? `${icon('sparkles', 13)} ${use.calls} AI request${use.calls === 1 ? '' : 's'}${use.failedCalls ? ` (${use.failedCalls} failed)` : ''} · ${use.tokens.toLocaleString('en')} tokens · ${tcDur(use.ms)} of generation${use.models.length ? ` · ${esc(use.models.join(', '))}` : ''}${use.links ? ` · ${use.links} unverifiable link${use.links === 1 ? '' : 's'} removed` : ''}` : 'No AI content generated yet.'}</div>
@@ -385,8 +385,27 @@ function builderContent(pane, course, ctx) {
     const pause = tcPauseOf(run, list);
     if (pause) fillPause(pane.querySelector('[data-pause]'), pause, run, list);
   }
+  // A YouTube video for each session that has none (the same search as the AI course generator). Sessions that
+  // already have a video or recording are never touched; a found video can be changed in the Sessions tab.
+  async function findVideos(e) {
+    const btn = e.currentTarget, c = cur(), CG = CourseGenLogic;
+    const items = sessions().map(s => ({ id: s.id, title: s.title, video: s.videoUrl ? { id: CG.youtubeId(s.videoUrl) || 'other:' + s.id } : undefined }));
+    const o = { title: c.title, modules: [{ sessions: items }] }, targets = CG.videoTargets(o);
+    if (!targets.length) return;
+    if (!(await confirmDialog(`Search YouTube for a video for ${targets.length === 1 ? `the ${t('session', true)}` : `each of the ${targets.length} ${t('sessions', true)}`} without one? Each video found is attached to its ${t('session', true)}; check it on the ${t('session', true)} page and change or remove it in the Sessions tab. ${t('sessions')} that already have a video are not changed.`, { title: 'Find YouTube videos', confirmText: 'Find videos' }))) return;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Finding videos…';
+    try {
+      const j = await SDCAI.videos({ feature: 'courseContent', queries: targets.map(x => CG.videoQuery(o, x)) });
+      CG.assignVideos(o, targets, j.results);
+      let n = 0;
+      targets.forEach(x => { const s = findRecord('sessions', x.id); if (x.video && s && !s.videoUrl) { updateRecord('sessions', s.id, { videoUrl: CG.watchUrl(x.video.id), videoTitle: x.video.title, videoChannel: x.video.channel }); n++; } });
+      toast(`${n} video${n === 1 ? '' : 's'} attached${n < targets.length ? `; none suitable for ${targets.length - n}` : ''}.${j.source === 'demo' ? ' Demo mode: these are placeholders, not real videos.' : ''}${j.stopped ? ' ' + j.stopped : ''}`, n ? 'success' : 'warning');
+    } catch (err) { toast(err.message || 'Videos could not be found.', 'error'); }
+    draw();
+  }
   function bind() {
     pane.querySelector('[data-gen-all]')?.addEventListener('click', startAll);
+    pane.querySelector('[data-find-videos]')?.addEventListener('click', findVideos);
     pane.querySelector('[data-stop]')?.addEventListener('click', () => TCRun.stop(course.id));
     pane.querySelector('[data-review]')?.addEventListener('click', runReview);
     pane.querySelector('[data-fit-time]')?.addEventListener('click', fitTimes);

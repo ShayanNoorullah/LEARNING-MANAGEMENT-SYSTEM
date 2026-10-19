@@ -45,7 +45,7 @@ App.route('/manage/courses/generate', { perm: 'courses', render(ctx) {
   if (!courseGenAllowed(u)) return deniedPage(ctx, `The AI course generator is not available for your account.`);
 
   const S = cgRestore(u) || { v: 1, userId: u.id, genId: cgNewId(), step: 'brief', brief: cgDefaultBrief(), outline: null, meta: null, confirmCount: false, takenSlugs: [], saving: false };
-  const T = { busy: false, error: null, touched: {}, attempted: false, block: '', saveNote: '', gen: 0 };
+  const T = { busy: false, error: null, touched: {}, attempted: false, block: '', saveNote: '', gen: 0, vid: {}, vidAuto: false };
   const scope = 'new:' + u.id; // the temporary provider choice for the course being drafted (js/ai-provider-ui.js)
   const rootEl = document.createElement('div');
   ctx.root.innerHTML = '';
@@ -192,7 +192,7 @@ App.route('/manage/courses/generate', { perm: 'courses', render(ctx) {
     if (run !== T.gen) return; // cancelled, or a newer request
     T.busy = false;
     if (r.ok) {
-      S.outline = { ...r.outline, slug: '' }; S.meta = r.meta; S.step = 'outline'; S.confirmCount = false; S.takenSlugs = [];
+      S.outline = { ...r.outline, slug: '' }; S.meta = r.meta; S.step = 'outline'; S.confirmCount = false; S.takenSlugs = []; T.vid = {};
       save(); if (alive()) { draw(); window.scrollTo(0, 0); }
     } else { T.error = { code: r.code, message: r.message, provider: r.provider || via.provider, model: r.model || via.model }; if (alive()) draw(); }
   }
@@ -266,7 +266,7 @@ App.route('/manage/courses/generate', { perm: 'courses', render(ctx) {
     const redraw = focusSel => { S.confirmCount = false; save(); const keep = window.scrollY; rootEl.querySelector('[data-outline]').innerHTML = outlineHTML(o); refreshMarks(); window.scrollTo(0, keep); if (focusSel) rootEl.querySelector(focusSel)?.focus(); };
     switch (a) {
       case 'toBrief': S.step = 'brief'; save(); return draw();
-      case 'toReview': { const b = blockers(check()); if (b.length) { toast(b[0].message, 'error'); return; } S.step = 'review'; save(); draw(); window.scrollTo(0, 0); return; }
+      case 'toReview': { const b = blockers(check()); if (b.length) { toast(b[0].message, 'error'); return; } S.step = 'review'; T.vidAuto = false; save(); draw(); window.scrollTo(0, 0); return; }
       case 'addOutcome': o.outcomes.push(''); return redraw(`[data-bind="outcomes.${o.outcomes.length - 1}"]`);
       case 'rmOutcome': CGL.removeOutcome(o, i); return redraw();
       case 'upOutcome': CGL.moveOutcome(o, i, -1); return redraw();
@@ -308,17 +308,64 @@ App.route('/manage/courses/generate', { perm: 'courses', render(ctx) {
         ${o.prerequisites ? `<h3>Prerequisites</h3><p>${esc(o.prerequisites)}</p>` : ''}
         <h3>Learning outcomes</h3><ol class="cg-ro">${o.outcomes.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
         <h3>Modules and ${esc(t('sessions', true))}</h3>
-        ${o.modules.map((m, mi) => `<div class="cg-rmod"><b>Module ${mi + 1}: ${esc(m.name)}</b>${m.summary ? `<small class="muted block">${esc(m.summary)}</small>` : ''}<ul class="plain">${m.sessions.map(s => { k++; return `<li><span class="s-num">${k}</span><span><b>${esc(s.title)}</b>${s.summary ? ` <span class="muted small">— ${esc(s.summary)}</span>` : ''}</span></li>`; }).join('') || '<li class="muted small">No sessions</li>'}</ul></div>`).join('')}
+        ${videoBar(o)}
+        ${o.modules.map((m, mi) => `<div class="cg-rmod"><b>Module ${mi + 1}: ${esc(m.name)}</b>${m.summary ? `<small class="muted block">${esc(m.summary)}</small>` : ''}<ul class="plain">${m.sessions.map((s, si) => { k++; return `<li><span class="s-num">${k}</span><span class="cg-rsess"><span><b>${esc(s.title)}</b>${s.summary ? ` <span class="muted small">— ${esc(s.summary)}</span>` : ''}</span>${videoHTML(s, mi, si)}</span></li>`; }).join('') || '<li class="muted small">No sessions</li>'}</ul></div>`).join('')}
       </div>
       ${marks.length ? `<div class="alert cg-warn" role="status"><b>${marks.length} thing${marks.length === 1 ? '' : 's'} to check</b><ul>${marks.map(m => `<li class="${m.block ? 'block' : ''}">${esc(m.message)}</li>`).join('')}</ul></div>` : ''}
       ${countOff ? `<label class="check cg-confirm"><input type="checkbox" data-confirm-count ${S.confirmCount ? 'checked' : ''}><span>I confirm saving <b>${n}</b> ${esc(t('sessions', true))} instead of the <b>${want}</b> in the brief.</span></label>` : ''}
       <div class="form-foot row gap-sm wrap"><button class="btn btn-ghost" data-act="toOutline">${icon('chevronLeft', 15)} Back to the outline</button><button class="btn btn-ghost" data-discard>Discard draft</button>
-        <button class="btn btn-primary" data-create ${blocking.length || (countOff && !S.confirmCount) || S.saving ? 'disabled' : ''}>${S.saving ? '<span class="spinner"></span> Saving…' : `${icon('check', 16)} Create draft course`}</button></div>
+        <button class="btn btn-primary" data-create ${blocking.length || (countOff && !S.confirmCount) || S.saving || T.vid.busy ? 'disabled' : ''} ${T.vid.busy ? 'title="Wait until the videos are found"' : ''}>${S.saving ? '<span class="spinner"></span> Saving…' : `${icon('check', 16)} Create draft course`}</button></div>
       ${blocking.length ? `<p class="help text-danger">Fix the marked problems on the outline before saving.</p>` : ''}`);
-    rootEl.querySelector('[data-confirm-count]')?.addEventListener('change', e => { S.confirmCount = e.target.checked; save(); rootEl.querySelector('[data-create]').disabled = !S.confirmCount || !!blocking.length || S.saving; });
+    rootEl.querySelector('[data-confirm-count]')?.addEventListener('change', e => { S.confirmCount = e.target.checked; save(); rootEl.querySelector('[data-create]').disabled = !S.confirmCount || !!blocking.length || S.saving || !!T.vid.busy; });
     rootEl.querySelector('[data-create]').onclick = createDraft;
     rootEl.querySelector('[data-discard]').onclick = discard;
-    rootEl.querySelector('[data-act="toOutline"]').onclick = () => { S.step = 'outline'; save(); draw(); };
+    rootEl.querySelector('[data-act="toOutline"]').onclick = () => { S.step = 'outline'; T.vidAuto = false; save(); draw(); };
+    rootEl.querySelector('[data-vid-find]')?.addEventListener('click', () => findVideos(true));
+    const sessAt = v => { const [mi, si] = String(v).split('.').map(Number); return o.modules[mi]?.sessions[si]; };
+    rootEl.querySelectorAll('[data-vid-next]').forEach(b => b.onclick = () => { const x = sessAt(b.dataset.vidNext); if (x && !CGL.nextVideo(o, x)) toast('No other video is left for this session.', 'warning'); save(); drawReview(); });
+    rootEl.querySelectorAll('[data-vid-rm]').forEach(b => b.onclick = () => { const x = sessAt(b.dataset.vidRm); if (x) x.video = null; save(); drawReview(); });
+    rootEl.querySelectorAll('[data-vid-paste]').forEach(b => b.onclick = () => {
+      const x = sessAt(b.dataset.vidPaste); if (!x) return;
+      const m = openModal({ title: 'Add a YouTube video', body: `<form data-vform novalidate><p class="small muted">For “${esc(x.title)}”.</p><div class="field"><label class="label" for="cg-vurl">YouTube video link</label><input class="input" id="cg-vurl" type="url" placeholder="https://www.youtube.com/watch?v=…" autocomplete="off"><p class="help text-danger" data-verr hidden></p></div></form>`,
+        footer: `<button class="btn btn-ghost" data-modal-close>Cancel</button><button class="btn btn-primary" data-vok>Add video</button>` });
+      const add = e => {
+        e?.preventDefault();
+        const id = CGL.youtubeId(m.querySelector('#cg-vurl').value.trim()), err = m.querySelector('[data-verr]');
+        if (!id) { err.hidden = false; err.textContent = 'That is not a YouTube video link. Use a link such as https://www.youtube.com/watch?v=… or https://youtu.be/…'; return; }
+        x.video = { id, title: '', channel: '', duration: 0 }; m.close(); save(); drawReview();
+      };
+      m.querySelector('[data-vok]').onclick = add; m.querySelector('[data-vform]').onsubmit = add;
+    });
+    // Videos are searched automatically once each time the review opens, for sessions not searched yet.
+    if (!T.vidAuto) { T.vidAuto = true; if (CGL.videoTargets(o).length) findVideos(false); }
+  }
+
+  /* ------------------------------------------------- YouTube videos */
+  // The server searches YouTube for each session's search phrase; the person keeps, swaps or removes each pick.
+  function videoBar(o) {
+    const all = o.modules.flatMap(m => m.sessions), withV = all.filter(x => x.video).length, v = T.vid;
+    return `<div class="cg-vidbar" role="status" aria-live="polite"><span>${icon('video', 15)} <b>YouTube videos:</b> ${v.busy ? '<span class="spinner"></span> Finding a video for each ' + esc(t('session', true)) + '…' : `${withV} of ${all.length} ${esc(t('sessions', true))}`}${v.source === 'demo' ? ` ${badge('Demo placeholders, not real videos', 'warning')}` : ''}</span>
+      ${!v.busy && withV < all.length ? `<button type="button" class="btn btn-ghost btn-sm" data-vid-find>${icon('refresh', 14)} Find videos for ${esc(t('sessions', true))} without one</button>` : ''}</div>
+      ${v.error ? `<div class="alert ${v.code === 'not_configured' ? 'cg-note' : 'alert-danger'} small" role="alert">${esc(v.error)}</div>` : v.note ? `<div class="alert cg-note small">${esc(v.note)}</div>` : ''}
+      <p class="small muted">Each video comes from YouTube search and is shown to ${esc(t('learners', true))} on its ${esc(t('session', true))} page. Open a video to check it; use <b>Another video</b> or <b>Remove</b> if it does not fit.</p>`;
+  }
+  function videoHTML(x, mi, si) {
+    const at = `${mi}.${si}`;
+    if (x.video) return `<span class="cg-video"><img src="https://i.ytimg.com/vi/${esc(x.video.id)}/mqdefault.jpg" alt="" loading="lazy" width="96" height="54" onerror="this.remove()"><span class="cg-vbody"><a href="${esc(CGL.watchUrl(x.video.id))}" target="_blank" rel="noopener">${esc(x.video.title || 'YouTube video (added by hand)')}</a><small class="muted">${esc(x.video.channel || 'YouTube')}${x.video.duration ? ' · ' + CGL.durationLabel(x.video.duration) : ''}</small></span>
+      <span class="cg-btns">${(x.videoAlt || []).length > 1 ? `<button type="button" class="btn btn-ghost btn-sm" data-vid-next="${at}">Another video</button>` : ''}<button type="button" class="btn btn-ghost btn-sm" data-vid-rm="${at}" aria-label="Remove the video from ${esc(x.title)}">Remove</button></span></span>`;
+    return `<span class="cg-video none"><small class="muted">${x.video === null ? 'No video' : T.vid.busy ? 'Searching…' : 'No video yet'}</small><button type="button" class="btn btn-ghost btn-sm" data-vid-paste="${at}">Paste a YouTube link</button></span>`;
+  }
+  async function findVideos(all) {
+    const o = S.outline, targets = o ? CGL.videoTargets(o, { all }) : [];
+    if (!targets.length || T.vid.busy || !window.SDCAI?.videos) return;
+    T.vid = { busy: true }; if (alive() && S.step === 'review') drawReview();
+    try {
+      const j = await SDCAI.videos({ feature: 'courseGenerate', queries: targets.map(x => CGL.videoQuery(o, x)) });
+      if (S.outline !== o) return; // the outline was replaced meanwhile
+      const found = CGL.assignVideos(o, targets, j.results);
+      T.vid = { source: j.source, note: j.stopped ? j.stopped : j.failed ? `${j.failed} search${j.failed === 1 ? '' : 'es'} did not finish. Press “Find videos” to try ${j.failed === 1 ? 'it' : 'them'} again.` : found < targets.length ? `No suitable video was found for ${targets.length - found} ${t(targets.length - found === 1 ? 'session' : 'sessions', true)}. You can paste a link, or add one later in the Course Builder.` : '' };
+    } catch (e) { T.vid = { error: e.message || 'Videos could not be found.', code: e.code }; }
+    save(); if (alive() && S.step === 'review') drawReview();
   }
 
   async function discard() {
@@ -334,7 +381,7 @@ App.route('/manage/courses/generate', { perm: 'courses', render(ctx) {
       outline: {
         title: o.title, tagline: o.tagline, description: o.description, prerequisites: o.prerequisites, code: o.code, icon: o.icon, slug: o.slug || '',
         outcomes: o.outcomes.filter(x => String(x).trim()),
-        modules: o.modules.map(m => ({ name: m.name, summary: m.summary, sessions: m.sessions.map(s => ({ title: s.title, summary: s.summary, refs: s.refs || [] })) })),
+        modules: o.modules.map(m => ({ name: m.name, summary: m.summary, sessions: m.sessions.map(s => ({ title: s.title, summary: s.summary, refs: s.refs || [], video: CGL.cleanVideo(s.video) })) })),
         level: b.level, programType: b.programType, delivery: b.delivery, programId: scopeAll(u) ? b.programId : '', divisionId: scopeAll(u) ? b.divisionId : '', hoursPerSession: Number(b.hours) || 0
       },
       meta: { provider: S.meta?.provider || '', model: S.meta?.model || '', mock: S.meta?.mock === true }
@@ -384,7 +431,7 @@ App.route('/manage/courses/generate', { perm: 'courses', render(ctx) {
     throw Object.assign(last || new Error('No answer'), { unconfirmed: true });
   }
   async function createDraft() {
-    if (S.saving) return;
+    if (S.saving || T.vid.busy) return;
     const marks = check(), blocking = blockers(marks), n = CGL.countSessions(S.outline), want = CGL.briefCheck(S.brief).sessions;
     if (blocking.length) { toast(blocking[0].message, 'error'); return; }
     if (n !== want && !S.confirmCount) { toast('Confirm the number of sessions first.', 'error'); return; }

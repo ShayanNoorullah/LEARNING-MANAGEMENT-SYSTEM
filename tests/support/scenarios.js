@@ -311,6 +311,12 @@ async function run(backend) {
       const s = await row();
       assert.equal((s.enrollments || []).length, 1, 'no enrolment was created'); // the one seeded enrolment only
       assert.equal(!!r.body.batch, false);
+      // videos chosen in the review are saved on their sessions; anything that is not a YouTube video id is dropped
+      const vids = await draft(a, body({ modules: [{ name: 'Module 1', sessions: [{ title: 'Lesson 1', video: { id: 'dQw4w9WgXcQ', title: 'Pivot tables', channel: 'Excel Channel', duration: 600 } },
+        { title: 'Lesson 2', video: { id: 'javascript:x', title: 'bad' } }, { title: 'Lesson 3', video: null, videoUrl: 'https://evil.example/x.mp4' }] }] }));
+      assert.equal(vids.status, 200);
+      assert.deepEqual(vids.body.sessions.map(x => [x.videoUrl || '', x.videoTitle || '', x.videoChannel || '']), [['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'Pivot tables', 'Excel Channel'], ['', '', ''], ['', '', '']]);
+      assert.equal((await row()).sessions.find(x => x.id === vids.body.sessions[0].id).videoUrl, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'stored in the shared state');
       const demo = await draft(a, body({}, { provider: 'mock-demo', model: 'mock-demo', mock: true }));
       assert.equal(demo.body.course.aiMeta.mock, true, 'demo-mode drafts are marked as such');
       const forged = await draft(a, body({}, { provider: 'x'.repeat(200), model: { a: 1 }, mock: 'yes' }));
@@ -485,7 +491,19 @@ async function run(backend) {
       assert.equal((await ai(l, 'courseContent')).status, 403, 'session content needs courses:edit');
       assert.equal((await ai(t, 'courseContent')).status, 400, 'an instructor who edits courses passes the guard (then: no provider configured)');
       assert.equal((await ai(a, 'courseContent')).status, 400);
+      // YouTube videos for the Course Builder: the same guard; with no YouTube key the answer is "not configured"
+      const vids = (c, feature) => callApi('POST', '/api/ai/videos', { feature, queries: ['excel pivot tables'] }, c.token);
+      assert.equal((await vids(l, 'courseGenerate')).status, 403);
+      assert.equal((await vids(t, 'courseGenerate')).status, 403, 'finding videos for a new course needs courses:create');
+      assert.equal((await vids(l, 'courseContent')).status, 403);
+      assert.deepEqual([(await vids(a, 'courseGenerate')).status, (await vids(a, 'courseGenerate')).body.code], [400, 'not_configured']);
+      assert.equal((await vids(t, 'courseContent')).status, 400, 'an instructor who edits courses passes the guard');
+      assert.equal((await vids(a, 'tutor')).status, 400, 'only the Course Builder features can search videos');
+      assert.equal((await vids(a)).status, 400, 'a request without a feature is refused, not let through the guard');
+      assert.equal((await callApi('POST', '/api/ai/youtube', { apiKey: 'AIzaTestOnly' }, l.token)).status, 403, 'only administrators set the YouTube key');
+      assert.equal((await callApi('POST', '/api/ai/youtube', { apiKey: 'AIzaTestOnly' }, t.token)).status, 403);
       await reset({ settings: { features: { courseGen: false } } });
+      assert.equal((await vids(await login('A'), 'courseGenerate')).status, 403, 'switch OFF: no video search either');
       assert.equal((await ai(await login('A'), 'courseGenerate')).status, 403, 'switch OFF');
       assert.equal((await ai(await login('A'), 'courseContent')).status, 403, 'switch OFF for content too');
     });

@@ -626,6 +626,15 @@ async function renderIntegrationsPane(pane, ctx) {
           <div class="row gap-sm wrap ai-provider-actions">${canCfg ? `<button class="btn btn-primary btn-sm" data-save-prof>${icon('check', 14)} ${prof ? 'Update' : 'Save'} profile</button><button class="btn btn-secondary btn-sm" data-test-prov>${icon('sparkles', 14)} Test</button>${prof ? `<button class="btn btn-ghost btn-sm danger" data-remove-prof>${icon('trash', 14)} Remove</button>` : ''}` : badge('View only')}</div>
         </div>`;
       }).join('')}</div></div>
+      ${(() => {
+        const yt = status.youtube || {}, st = status.usage?.byProvider?.youtube;
+        const last = yt.lastTest ? (yt.lastTest.ok ? `Connection OK ${esc(fmtDateTime(yt.lastTest.at))}` : `<span class="text-danger">Last test failed ${esc(fmtDateTime(yt.lastTest.at))}: ${esc(yt.lastTest.message || yt.lastTest.code)}</span>`) : (yt.maskedKey ? 'Not tested since the key was saved.' : '');
+        return `<div class="card" data-youtube><div class="row-between gap-sm wrap"><h3>${icon('video', 18)} YouTube videos</h3>${yt.configured ? badge('Configured', 'success') : yt.demo ? badge('Demo mode', 'warning') : badge('Not set', 'neutral')}</div>
+        <p class="small muted">The AI Course Builder attaches a YouTube video to each ${esc(t('session', true))} by searching YouTube's official Data API (embeddable, public, safe search). A person reviews every video before the course is saved. Uses a YouTube Data API v3 key from Google Cloud; each search uses 100 of the 10,000 free daily units, so about 100 ${esc(t('sessions', true))} a day.${yt.maskedKey ? ' · Key ' + esc(yt.maskedKey) : yt.env ? ' · Env var set' : ''}</p>
+        ${last || st ? `<p class="small muted">${last}${st ? `${last ? '<br>' : ''}This month: ${st.calls} searches answered${st.errors ? ` · ${st.errors} failed` : ''}` : ''}</p>` : ''}
+        <div class="form-grid tight"><div class="field full"><label class="label" for="yt-key">API key</label><input class="input" id="yt-key" type="password" data-yt-key autocomplete="off" placeholder="${esc(yt.maskedKey || 'AIza…')}" ${canCfg && !yt.env ? '' : 'disabled'}></div></div>
+        <div class="row gap-sm wrap ai-provider-actions">${canCfg ? `${yt.env ? '' : `<button class="btn btn-primary btn-sm" data-yt-save>${icon('check', 14)} ${yt.maskedKey ? 'Update' : 'Save'} key</button>`}<button class="btn btn-secondary btn-sm" data-yt-test>${icon('video', 14)} Test</button>${yt.maskedKey ? `<button class="btn btn-ghost btn-sm danger" data-yt-remove>${icon('trash', 14)} Remove</button>` : ''}` : badge('View only')}</div></div>`;
+      })()}
       <div class="card"><h3>Capability map</h3><p class="small muted mb">Each SDC Learn AI feature can use a different provider and model.</p>
         <div class="table-wrap"><table class="table"><thead><tr><th>Capability</th><th>Provider</th><th>Model override</th></tr></thead><tbody>
           ${caps.map(cap => {
@@ -737,6 +746,22 @@ async function renderIntegrationsPane(pane, ctx) {
   const loadBtn = pane.querySelector('[data-load-models]');
   loadBtn?.addEventListener('click', e => loadModels(e.currentTarget));
   if (loadBtn && (status.profiles || []).some(x => x.provider === 'groq')) loadModels(loadBtn, { fresh: false, quiet: true });
+  const ytKeyBox = pane.querySelector('[data-yt-key]');
+  pane.querySelector('[data-yt-save]')?.addEventListener('click', async () => {
+    try { await SDCAI.youtube({ apiKey: ytKeyBox.value }); toast('YouTube key saved. Press Test to check it.'); renderIntegrationsPane(pane, ctx); }
+    catch (err) { toast(err.message, 'error'); }
+  });
+  pane.querySelector('[data-yt-test]')?.addEventListener('click', async e => {
+    const btn = e.currentTarget; btn.disabled = true;
+    try { const j = await SDCAI.youtube({ test: true, apiKey: ytKeyBox?.value || undefined }); toast(`YouTube connected · ${j.found} videos found for a sample search`); if (!ytKeyBox?.value) renderIntegrationsPane(pane, ctx); }
+    catch (err) { toast(err.message, 'error'); if (!ytKeyBox?.value) renderIntegrationsPane(pane, ctx); }
+    finally { btn.disabled = false; }
+  });
+  pane.querySelector('[data-yt-remove]')?.addEventListener('click', async () => {
+    if (!(await confirmDialog('Remove the YouTube API key from the server? The Course Builder stops finding videos automatically; videos already attached to sessions stay.', { title: 'Remove YouTube key', confirmText: 'Remove key', danger: true }))) return;
+    try { await SDCAI.youtube({ remove: true }); toast('YouTube key removed.'); renderIntegrationsPane(pane, ctx); }
+    catch (err) { toast(err.message, 'error'); }
+  });
   pane.querySelectorAll('[data-cap-prov]').forEach(sel => sel.onchange = () => {
     const input = sel.closest('tr').querySelector('[data-cap-model]');
     if (sel.value === 'groq') input.setAttribute('list', 'groq-models'); else input.removeAttribute('list');

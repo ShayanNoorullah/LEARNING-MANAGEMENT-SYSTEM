@@ -8,7 +8,7 @@
      instructor (other than the creator's own first batch) or dates, and always start as 'draft'.
    - The fix / mark / refuse rule of the Final Plan (section 6.3) lives in parseAnswer, normalize and check. */
 const CourseGenLogic = (() => {
-  const LIMITS = { modules: 12, sessions: 48, title: 160, line: 300, text: 4000, outcomes: 20, source: 12000, topic: 160, audience: 600, free: 1000, tools: 300, weeks: 52, perWeek: 7, minHours: 0.5, maxHours: 8, code: 20 };
+  const LIMITS = { modules: 12, sessions: 48, title: 160, line: 300, text: 4000, outcomes: 20, source: 12000, videoQuery: 150, topic: 160, audience: 600, free: 1000, tools: 300, weeks: 52, perWeek: 7, minHours: 0.5, maxHours: 8, code: 20 };
   // Same list as the course form's icon picker (COURSE_ICONS in js/pages-manage.js uses this one).
   const ICONS = ['book', 'grid', 'chart', 'pie', 'database', 'truck', 'shield', 'globe', 'cap', 'layers', 'target', 'sparkles', 'building', 'wallet'];
   const GEN_ID = /^[A-Za-z0-9-]{16,64}$/;
@@ -51,7 +51,7 @@ Design the outline of ONE course. Answer with a single JSON object and nothing e
 JSON shape:
 {"title": string, "tagline": string (one line), "description": string (2 to 4 sentences), "prerequisites": string, "code": string (short course code such as "PBI-101"), "icon": one of ${JSON.stringify(icons)},
  "outcomes": [string, ... 4 to 8 items],
- "modules": [{"name": string, "summary": string (one line), "sessions": [{"title": string, "summary": string (one line, at most 140 characters), "outcomes": [integers: the numbers of the outcomes this session supports, counting from 1]}]}]}
+ "modules": [{"name": string, "summary": string (one line), "sessions": [{"title": string, "summary": string (one line, at most 140 characters), "outcomes": [integers: the numbers of the outcomes this session supports, counting from 1], "video": string (a YouTube search phrase of 3 to 8 words that finds one good English tutorial video for this session, including the tool or subject name)}]}]}
 
 Rules:
 - Exactly ${n} sessions in total, spread over the modules. At most ${LIMITS.modules} modules.
@@ -118,7 +118,8 @@ Rules:
       for (const s of m.sessions) {
         const st = plain(s?.title).replace(SESSION_NO, '');
         if (!st) return { error: `Module "${name}" has a session with no title.` };
-        sessions.push({ title: st, summary: plain(s.summary), refs: refList(s.outcomes) });
+        const vq = plain(s.video).slice(0, LIMITS.videoQuery);
+        sessions.push({ title: st, summary: plain(s.summary), refs: refList(s.outcomes), ...(vq ? { videoQuery: vq } : {}) });
         total++;
       }
       modules.push({ name, summary: plain(m.summary), sessions });
@@ -265,7 +266,7 @@ Rules:
       const sessions = Array.from({ length: count }, (_, j) => {
         k++;
         const title = i === m - 1 && j === count - 1 && m > 1 ? `Project showcase and assessment (session ${k})` : `${name}: session ${j + 1} (overall ${k})`;
-        return { title, summary: `Demo sample: practical work on ${topic}${tools ? ' with ' + tools : ''}.`, outcomes: [1 + ((k - 1) % outcomes.length)] };
+        return { title, summary: `Demo sample: practical work on ${topic}${tools ? ' with ' + tools : ''}.`, outcomes: [1 + ((k - 1) % outcomes.length)], video: `${topic} ${name} part ${j + 1} tutorial` };
       });
       return { name: `${name}`, summary: `Demo sample module ${i + 1} of ${m}.`, sessions };
     });
@@ -277,6 +278,42 @@ Rules:
       prerequisites: 'None specified', code: 'DEMO-101', icon: 'book', outcomes, modules
     };
   }
+
+  /* ------------------------------------------------------------ videos */
+  // The AI never supplies video links (it would invent them). It gives a search phrase per session; the
+  // server searches YouTube's official API and the person picks or removes each video before saving.
+  // s.video: undefined = not searched yet, null = removed by the person, {id,title,channel,duration} = chosen.
+  const YT_ID = /^[\w-]{11}$/;
+  const youtubeId = url => (String(url || '').match(/^https?:\/\/(?:www\.|m\.)?(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})(?:[?&#/]|$)/) || [])[1] || '';
+  const watchUrl = id => `https://www.youtube.com/watch?v=${id}`;
+  const cleanVideo = v => (v && typeof v === 'object' && YT_ID.test(v.id) ? { id: v.id, title: str(v.title, 200), channel: str(v.channel, 100), duration: Math.max(0, Math.floor(Number(v.duration) || 0)) } : null);
+  const sessionsOf = o => (o?.modules || []).flatMap(m => m.sessions || []);
+  const videoQuery = (o, s) => (plain(s.videoQuery) || `${plain(s.title)} ${plain(o.title)}`).slice(0, LIMITS.videoQuery);
+  // Sessions that still need a video (`all`: also the ones the person removed), with their search phrases.
+  const videoTargets = (o, { all = false } = {}) => sessionsOf(o).filter(s => (all ? !s.video : s.video === undefined) && plain(s.title));
+  // results[i] = candidates for targets[i] (best first). Each session gets its best candidate that no other
+  // session in the course already shows; the rest are kept as alternatives for "Another video".
+  function assignVideos(o, targets, results) {
+    const used = new Set(sessionsOf(o).map(s => s.video?.id).filter(Boolean));
+    let found = 0;
+    targets.forEach((s, i) => {
+      const list = (Array.isArray(results?.[i]) ? results[i] : []).map(cleanVideo).filter(Boolean);
+      if (!Array.isArray(results?.[i])) return; // that search failed: leave the session to be searched again
+      s.videoAlt = list.slice(0, 5);
+      const pick = list.find(v => !used.has(v.id)) || null;
+      s.video = pick; if (pick) { used.add(pick.id); found++; }
+    });
+    return found;
+  }
+  // "Another video": the next alternative not used elsewhere in the course.
+  function nextVideo(o, s) {
+    const alts = (s.videoAlt || []).map(cleanVideo).filter(Boolean); if (!alts.length) return null;
+    const used = new Set(sessionsOf(o).filter(x => x !== s).map(x => x.video?.id).filter(Boolean));
+    const at = alts.findIndex(v => v.id === s.video?.id);
+    for (let k = 1; k <= alts.length; k++) { const v = alts[(at + k) % alts.length]; if (!used.has(v.id) && v.id !== s.video?.id) return (s.video = v); }
+    return null;
+  }
+  const durationLabel = sec => { sec = Math.floor(Number(sec) || 0); if (!sec) return ''; const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), x = sec % 60; return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`; };
 
   /* ------------------------------------------------- the saved records */
   // outline = { title, tagline?, description?, level?, programType?, delivery?, programId?, divisionId?, prerequisites?,
@@ -334,13 +371,14 @@ Rules:
     const sessions = outline.modules.flatMap(m => m.sessions.map(s => {
       n++;
       coverage.push([...new Set((s.refs || []).filter(r => Number.isInteger(r) && r >= 1 && r <= outcomes.length))]);
-      return { id: id.session(n), courseId: course.id, title: str(s.title, LIMITS.title), moduleName: str(m.name, LIMITS.line), summary: text(s.summary, LIMITS.text), ...(hours ? { duration: hours } : {}), order: n, published: true, resources: [], zoom: { registerUrl: '', meetingId: '', password: '' }, aiGenerated: true, createdAt: now };
+      const v = cleanVideo(s.video), vid = v ? { videoUrl: watchUrl(v.id), ...(v.title ? { videoTitle: v.title } : {}), ...(v.channel ? { videoChannel: v.channel } : {}) } : {};
+      return { id: id.session(n), courseId: course.id, title: str(s.title, LIMITS.title), moduleName: str(m.name, LIMITS.line), summary: text(s.summary, LIMITS.text), ...(hours ? { duration: hours } : {}), ...vid, order: n, published: true, resources: [], zoom: { registerUrl: '', meetingId: '', password: '' }, aiGenerated: true, createdAt: now };
     }));
     course.aiMeta.coverage = coverage; // outline step: which outcomes each session supports, in session order
     const batch = ownBatch ? { id: id.batch, courseId: course.id, name: batchName || title, instructorId: userId, startDate: '', endDate: '', delivery, venue: '', capacity: 30, status: 'Active', createdAt: now } : null;
     return { course, sessions, batch };
   }
 
-  return { LIMITS, ICONS, validGenId, ids, slugify, briefCheck, tokenBudget, buildMessages, parseAnswer, normalize, countSessions, check, removeOutcome, moveOutcome, moveSession, moveModule, generate, mockOutline, validate, build, hoursLabel };
+  return { LIMITS, ICONS, validGenId, ids, slugify, briefCheck, tokenBudget, buildMessages, parseAnswer, normalize, countSessions, check, removeOutcome, moveOutcome, moveSession, moveModule, generate, mockOutline, validate, build, hoursLabel, youtubeId, watchUrl, cleanVideo, videoQuery, videoTargets, assignVideos, nextVideo, durationLabel };
 })();
 if (typeof module !== 'undefined') module.exports = CourseGenLogic;

@@ -950,6 +950,14 @@ body, .sidebar, .topbar, .card, .stat, .course-card, .session-row, .input { tran
 .cg-ro { margin: 0; padding-left: 22px; }
 .cg-rmod { margin-bottom: 10px; }
 .cg-rmod .plain li { align-items: flex-start; }
+.cg-rsess { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.cg-vidbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 6px; }
+.cg-video { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2, transparent); }
+.cg-video img { width: 96px; height: 54px; object-fit: cover; border-radius: 6px; flex: none; }
+.cg-video .cg-vbody { display: flex; flex-direction: column; min-width: 0; flex: 1 1 180px; }
+.cg-video .cg-vbody a { font-weight: 600; overflow-wrap: anywhere; }
+.cg-video.none { border-style: dashed; }
+.video-credit { margin: 6px 0 0; overflow-wrap: anywhere; }
 .cg-confirm { margin-top: 14px; }
 @media (max-width: 640px) { .cg-row { flex-wrap: wrap; } .cg-refs { flex-basis: 100%; } .cg-mark { margin-left: 0; } }
 
