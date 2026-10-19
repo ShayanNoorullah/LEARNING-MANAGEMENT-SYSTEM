@@ -572,6 +572,7 @@ App.route('/feedback', { perm: 'feedback', feature: 'feedback', render(ctx) {
 
 /* ------------------------------------------- SDC Learn AI Integrations */
 async function renderIntegrationsPane(pane, ctx) {
+  pane.dataset.dirty = ''; // a redraw starts from the saved settings
   const canCfg = can('ai', 'configure') || can('settings', 'edit');
   const integ = clone(Domain.integrations());
   const caps = Object.keys(DEFAULT_SETTINGS.integrations.capabilities);
@@ -599,8 +600,8 @@ async function renderIntegrationsPane(pane, ctx) {
     : `<span class="text-danger">Last test failed ${esc(fmtDateTime(prof.lastTest.at))}: ${esc(prof.lastTest.message || prof.lastTest.code)}</span>`;
   pane.innerHTML = `
     <div class="stack">
-      <div class="card"><div class="row-between wrap gap-sm"><div><h3>${icon('sparkles', 18)} SDC Learn AI</h3><p class="small muted">Provider keys stay on the server. Capability routing is saved with your platform settings.</p></div>
-        <label class="switch">${integ.aiEnabled !== false ? '' : ''}<input type="checkbox" data-ai-master ${integ.aiEnabled !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span class="switch-track"></span><span class="small">Master switch</span></label></div>
+      <div class="card"><div class="row-between wrap gap-sm"><div><h3>${icon('sparkles', 18)} SDC Learn AI</h3><p class="small muted">Connect an AI provider, then choose which provider each feature uses. API keys are kept encrypted on the server and never sent to browsers.</p></div>
+        <label class="switch nowrap"><input type="checkbox" data-ai-master ${Domain.aiEnabled() ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span class="switch-track"></span><span class="small" data-ai-master-label>${Domain.aiEnabled() ? 'AI is on' : 'AI is off'}</span></label></div>
         ${status.error ? `<p class="help danger">${esc(status.error)}</p>` : `<p class="help">Usage this month: <b>${status.usage?.calls || 0}</b> calls · <b>${status.usage?.tokens || 0}</b> tokens</p>`}
       </div>
       <div class="ai-provider-layout">
@@ -629,31 +630,32 @@ async function renderIntegrationsPane(pane, ctx) {
       ${(() => {
         const yt = status.youtube || {}, st = status.usage?.byProvider?.youtube;
         const last = yt.lastTest ? (yt.lastTest.ok ? `Connection OK ${esc(fmtDateTime(yt.lastTest.at))}` : `<span class="text-danger">Last test failed ${esc(fmtDateTime(yt.lastTest.at))}: ${esc(yt.lastTest.message || yt.lastTest.code)}</span>`) : (yt.maskedKey ? 'Not tested since the key was saved.' : '');
-        return `<div class="card" data-youtube><div class="row-between gap-sm wrap"><h3>${icon('video', 18)} YouTube videos</h3>${yt.configured ? badge('Configured', 'success') : yt.demo ? badge('Demo mode', 'warning') : badge('Not set', 'neutral')}</div>
-        <p class="small muted">The AI Course Builder attaches a YouTube video to each ${esc(t('session', true))} by searching YouTube's official Data API (embeddable, public, safe search). A person reviews every video before the course is saved. Uses a YouTube Data API v3 key from Google Cloud; each search uses 100 of the 10,000 free daily units, so about 100 ${esc(t('sessions', true))} a day.${yt.maskedKey ? ' · Key ' + esc(yt.maskedKey) : yt.env ? ' · Env var set' : ''}</p>
-        ${last || st ? `<p class="small muted">${last}${st ? `${last ? '<br>' : ''}This month: ${st.calls} searches answered${st.errors ? ` · ${st.errors} failed` : ''}` : ''}</p>` : ''}
-        <div class="form-grid tight"><div class="field full"><label class="label" for="yt-key">API key</label><input class="input" id="yt-key" type="password" data-yt-key autocomplete="off" placeholder="${esc(yt.maskedKey || 'AIza…')}" ${canCfg && !yt.env ? '' : 'disabled'}></div></div>
-        <div class="row gap-sm wrap ai-provider-actions">${canCfg ? `${yt.env ? '' : `<button class="btn btn-primary btn-sm" data-yt-save>${icon('check', 14)} ${yt.maskedKey ? 'Update' : 'Save'} key</button>`}<button class="btn btn-secondary btn-sm" data-yt-test>${icon('video', 14)} Test</button>${yt.maskedKey ? `<button class="btn btn-ghost btn-sm danger" data-yt-remove>${icon('trash', 14)} Remove</button>` : ''}` : badge('View only')}</div></div>`;
+        return `<div class="card yt-card" data-youtube><div class="row-between gap-sm wrap"><div><h3>${icon('video', 18)} YouTube videos</h3><p class="small muted">The AI Course Builder finds a YouTube video for each ${esc(t('session', true))}; a person reviews every video before the course is saved.</p></div>${yt.configured ? badge('Configured', 'success') : yt.demo ? badge('Demo mode', 'warning') : badge('Not set', 'neutral')}</div>
+        ${last || st || yt.maskedKey || yt.env ? `<p class="small muted">${yt.maskedKey ? `Key ${esc(yt.maskedKey)}` : yt.env ? 'Key from the YOUTUBE_API_KEY environment variable' : ''}${last ? ` · ${last}` : ''}${st ? ` · This month: ${st.calls} search${st.calls === 1 ? '' : 'es'}${st.errors ? `, ${st.errors} failed` : ''}` : ''}</p>` : ''}
+        <div class="yt-row"><div class="field"><label class="label" for="yt-key">${yt.maskedKey ? 'Replace API key' : 'YouTube Data API v3 key'}</label><input class="input" id="yt-key" type="password" data-yt-key autocomplete="off" placeholder="${esc(yt.maskedKey || 'Paste the key, e.g. AIza…')}" ${canCfg && !yt.env ? '' : 'disabled'}></div>
+          <div class="row gap-sm wrap">${canCfg ? `${yt.env ? '' : `<button class="btn btn-primary btn-sm" data-yt-save>${icon('check', 14)} ${yt.maskedKey ? 'Update' : 'Save'} key</button>`}<button class="btn btn-secondary btn-sm" data-yt-test>${icon('video', 14)} Test</button>${yt.maskedKey ? `<button class="btn btn-ghost btn-sm danger" data-yt-remove>${icon('trash', 14)} Remove</button>` : ''}` : badge('View only')}</div></div>
+        <details class="yt-help"><summary class="small">How to get a key</summary><ol class="small muted"><li>Open <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3 in Google Cloud Console</a> and press <b>Enable</b> (create a project first if asked).</li><li>Go to <b>APIs &amp; Services → Credentials → Create credentials → API key</b>, and restrict the key to the YouTube Data API v3.</li><li>Paste it above, press <b>Save key</b>, then <b>Test</b>.</li></ol><p class="small muted">The free quota is 10,000 units a day; one search uses 100, so about 100 ${esc(t('sessions', true))} a day. Results are kept for 12 hours.</p></details></div>`;
       })()}
       <div class="card"><h3>Capability map</h3><p class="small muted mb">Each SDC Learn AI feature can use a different provider and model.</p>
-        <div class="table-wrap"><table class="table"><thead><tr><th>Capability</th><th>Provider</th><th>Model override</th></tr></thead><tbody>
+        <div class="table-wrap"><table class="table cap-table"><thead><tr><th>Feature</th><th>Provider</th><th>Model (optional)</th></tr></thead><tbody>
           ${caps.map(cap => {
             const c = integ.capabilities[cap] || {}, parent = DEFAULT_SETTINGS.integrations.capabilities[cap]?.inherit;
             const opts = (parent ? `<option value="" ${!c.provider ? 'selected' : ''}>Same as ${esc(CAP_LABEL[parent] || parent)}</option>` : '') + providers.map(p => `<option value="${p.id}" ${c.provider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('');
-            return `<tr data-cap="${cap}"><td><b>${esc(CAP_LABEL[cap] || cap)}</b><small class="muted block">${esc(cap)}</small></td>
-              <td><select class="input" data-cap-prov ${canCfg ? '' : 'disabled'}>${opts}</select></td>
-              <td><input class="input" data-cap-model value="${esc(c.model || '')}" placeholder="${parent && !c.provider ? 'Same as above' : 'Use profile default'}" ${c.provider === 'groq' ? 'list="groq-models"' : ''} ${canCfg ? '' : 'disabled'}></td></tr>`;
+            return `<tr data-cap="${cap}"><td class="td-primary"><b>${esc(CAP_LABEL[cap] || cap)}</b><small class="muted block">${esc(cap)}</small></td>
+              <td data-label="Provider"><select class="input" data-cap-prov aria-label="${esc(CAP_LABEL[cap] || cap)}: provider" ${canCfg ? '' : 'disabled'}>${opts}</select></td>
+              <td data-label="Model"><input class="input" data-cap-model aria-label="${esc(CAP_LABEL[cap] || cap)}: model" value="${esc(c.model || '')}" placeholder="${parent && !c.provider ? 'Same as above' : 'Use profile default'}" ${c.provider === 'groq' ? 'list="groq-models"' : ''} ${canCfg ? '' : 'disabled'}></td></tr>`;
           }).join('')}
         </tbody></table></div>
-        <p class="small muted">Changing a provider or model affects only new requests: generated content, a person's edits, history and the progress of an unfinished course are kept, and generation continues where it stopped. Each part records the provider and model that wrote it.</p>
+        <p class="small muted">Leave the model empty to use the provider's default model. Changing a provider or model affects only new requests: generated content, a person's edits, history and the progress of an unfinished course are kept, and generation continues where it stopped.</p>
+      </div>
+      <div class="card"><h3>Fallback, budget and privacy</h3>
         <div class="form-grid mt"><div class="field"><label class="label">Primary provider</label><select class="input" data-primary ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${integ.primaryProvider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select></div>
-          <div class="field"><label class="label">Fallback provider</label><select class="input" data-fallback ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${integ.fallbackProvider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}<option value="none" ${integ.fallbackProvider === 'none' ? 'selected' : ''}>None: never switch automatically</option></select><p class="help">Used by the tutor, summaries and quizzes. The Course Builder (outline, course content, regenerate, repair, course check) never uses it: when its provider stops, it pauses and a coordinator chooses another provider there.</p>
-            <p class="help">Tried when the chosen provider fails. Groq is only used where it is chosen here or in the map above.</p></div>
-          <div class="field"><label class="label">Monthly call budget</label><input class="input" type="number" data-budget-calls value="${integ.budget?.maxCalls ?? 5000}" ${canCfg ? '' : 'disabled'}></div>
-          <div class="field"><label class="label">Hard stop at budget</label><label class="check"><input type="checkbox" data-budget-hard ${integ.budget?.hardStop !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span>Disable AI actions when exceeded</span></label></div>
-          <div class="field"><label class="label">Strip PII from prompts</label><label class="check"><input type="checkbox" data-strip ${integ.stripPiiDefault !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span>Redact names, emails, phones, CNIC, reg. nos.</span></label></div>
+          <div class="field"><label class="label">Fallback provider</label><select class="input" data-fallback ${canCfg ? '' : 'disabled'}>${providers.map(p => `<option value="${p.id}" ${integ.fallbackProvider === p.id ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}<option value="none" ${integ.fallbackProvider === 'none' ? 'selected' : ''}>None: never switch automatically</option></select><p class="help">Tried when a tutor, summary, quiz or grading request fails. Groq is used only where it is chosen. The Course Builder never switches by itself: it pauses so a coordinator can choose another provider.</p></div>
+          <div class="field"><label class="label" for="ai-budget">Monthly AI call budget</label><input class="input" id="ai-budget" type="number" min="0" step="100" data-budget-calls value="${integ.budget?.maxCalls ?? 5000}" ${canCfg ? '' : 'disabled'}><p class="help">Used this month: ${status.usage?.calls || 0} of ${integ.budget?.maxCalls ?? 5000} calls.</p></div>
+          <div class="field"><span class="label">When the budget is reached</span><label class="check"><input type="checkbox" data-budget-hard ${integ.budget?.hardStop !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span>Stop AI actions until next month</span></label></div>
+          <div class="field full"><span class="label">Privacy</span><label class="check"><input type="checkbox" data-strip ${integ.stripPiiDefault !== false ? 'checked' : ''} ${canCfg ? '' : 'disabled'}><span>Remove personal details (names, emails, phone numbers, CNIC, registration numbers) before text is sent to a provider</span></label></div>
         </div>
-        ${canCfg ? `<div class="form-foot"><button class="btn btn-primary" data-save-map>${icon('check', 16)} Save Integrations settings</button></div>` : ''}
+        ${canCfg ? `<div class="form-foot"><span class="dirty-note" data-dirty-note hidden>${icon('alert', 14)} Unsaved changes to the feature map or these settings</span><button class="btn btn-primary" data-save-map>${icon('check', 16)} Save routing and limits</button></div>` : ''}
       </div>
     </div>`;
   const providerTabs = Array.from(pane.querySelectorAll('[data-provider-tab]'));
@@ -682,7 +684,8 @@ async function renderIntegrationsPane(pane, ctx) {
     };
   });
   pane.querySelector('[data-ai-master]')?.addEventListener('change', e => {
-    const d = db(); d.settings.integrations = { ...Domain.integrations(), aiEnabled: e.target.checked }; saveDB(d); toast(e.target.checked ? 'SDC Learn AI enabled.' : 'SDC Learn AI disabled.');
+    const on = e.target.checked, d = db(); d.settings.integrations = { ...Domain.integrations(), aiEnabled: on }; d.settings.features = { ...d.settings.features, ai: on }; saveDB(d); // the same switch as Settings → Features
+    pane.querySelector('[data-ai-master-label]').textContent = on ? 'AI is on' : 'AI is off'; toast(on ? 'SDC Learn AI turned on.' : 'SDC Learn AI turned off for everyone.');
   });
   pane.querySelectorAll('[data-save-prof]').forEach(btn => btn.onclick = async () => {
     const card = btn.closest('[data-prov]'); const provider = card.dataset.prov;
@@ -762,6 +765,8 @@ async function renderIntegrationsPane(pane, ctx) {
     try { await SDCAI.youtube({ remove: true }); toast('YouTube key removed.'); renderIntegrationsPane(pane, ctx); }
     catch (err) { toast(err.message, 'error'); }
   });
+  // The feature map and the limits save with one button: say when there is something to save.
+  pane.querySelectorAll('[data-cap-prov], [data-cap-model], [data-primary], [data-fallback], [data-budget-calls], [data-budget-hard], [data-strip]').forEach(el => el.addEventListener(el.type === 'checkbox' || el.tagName === 'SELECT' ? 'change' : 'input', () => { pane.dataset.dirty = '1'; const n = pane.querySelector('[data-dirty-note]'); if (n) n.hidden = false; }));
   pane.querySelectorAll('[data-cap-prov]').forEach(sel => sel.onchange = () => {
     const input = sel.closest('tr').querySelector('[data-cap-model]');
     if (sel.value === 'groq') input.setAttribute('list', 'groq-models'); else input.removeAttribute('list');
@@ -788,17 +793,18 @@ async function renderIntegrationsPane(pane, ctx) {
       },
       capabilities
     };
-    saveDB(d);
-    toast('Integrations settings saved.');
+    saveDB(d); pane.dataset.dirty = ''; pane.querySelector('[data-dirty-note]').hidden = true;
+    toast('Routing and limits saved.');
   });
 }
 
 /* --------------------------------------------------------------- Settings */
 App.route('/settings', { perm: 'settings', render(ctx) {
   ctx.setCrumbs([{ label: 'Settings' }]);
-  const tab = ctx.query.tab || 'brand';
   const s = settings();
   const tabs = [['brand', 'Branding', 'building'], ['appearance', 'Appearance', 'sun'], ['terms', 'Terminology', 'book'], ['learning', 'Learning', 'cap'], ['integrations', 'Integrations', 'sparkles'], ['auth', 'Sign-in', 'shield'], ['features', 'Features', 'grid'], ['data', 'Data', 'database']];
+  const tab = tabs.some(x => x[0] === ctx.query.tab) ? ctx.query.tab : 'brand'; // an unknown ?tab= opens Branding
+  const H = (label, help) => ({ type: 'heading', label, help });
   const groups = {
     brand: { section: 'brand', fields: [
       { name: 'productName', label: 'Product name', required: true }, { name: 'orgShort', label: 'Short organisation name', required: true }, { name: 'orgName', label: 'Organisation name', required: true, full: true },
@@ -812,32 +818,48 @@ App.route('/settings', { perm: 'settings', render(ctx) {
       { name: 'primary', label: 'Primary colour', type: 'color' }, { name: 'accent', label: 'Accent colour', type: 'color' }, { name: 'highlight', label: 'Highlight (certificates, CTAs)', type: 'color' },
       { name: 'radius', label: 'Corner radius (px)', type: 'number', min: 4, max: 24 }, { name: 'mode', label: 'Default theme', type: 'select', options: [{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }], placeholderOption: false, help: 'Users can still switch with the moon/sun toggle.' }
     ] },
-    terms: { section: 'terms', fields: Object.keys(DEFAULT_SETTINGS.terms).map(k => ({ name: k, label: `“${DEFAULT_SETTINGS.terms[k]}” is called`, required: true })) },
+    terms: { section: 'terms', fields: [H('Words used across the platform', 'Singular on the left, plural on the right. Menus, pages and messages use these words.'),
+      ...(() => { const K = Object.keys(DEFAULT_SETTINGS.terms), plural = k => K.find(x => [k + 's', k + 'es', k + 'zes'].includes(x));
+        const sing = K.filter(plural), used = new Set(sing.flatMap(k => [k, plural(k)]));
+        return [...sing.flatMap(k => [k, plural(k)]), ...K.filter(k => !used.has(k))]; })().map(k => ({ name: k, label: `“${DEFAULT_SETTINGS.terms[k]}” is called`, required: true }))] },
     learning: { section: 'lms', fields: [
+      H('Help and uploads', 'Where learners get help, and the files they can submit.'),
       { name: 'helpUrl', label: 'Default help / support form URL', full: true, help: 'Used on course pages when a course has no help URL. Google Forms, mailto: or any https link.' },
       { name: 'uploadEndpoint', label: 'Upload endpoint', help: 'Express route that stores files (default /api/lms/uploads).' }, { name: 'uploadMaxMB', label: 'Max upload size (MB)', type: 'number', min: 1, max: 200 },
       { name: 'allowedTypes', label: 'Accepted submission file types', full: true, help: 'Comma-separated extensions, e.g. xlsx, docx, pdf, pbix, ipynb' }, { name: 'inlineFallbackMB', label: 'Browser fallback limit (MB)', type: 'number', min: 0, max: 5, step: 0.5, help: 'Small files are kept in the browser if the upload server is offline. 0 disables.' },
       { name: 'lateSubmissions', label: 'Late submissions', type: 'checkbox', checkLabel: 'Allow late submissions (per-assignment setting still applies)' },
-      { name: 'attendanceWarning', label: 'Attendance warning (%)', type: 'number', min: 0, max: 100 }, { name: 'completionPercent', label: 'Certificate eligibility — progress (%)', type: 'number', min: 0, max: 100 }, { name: 'passPercent', label: 'Pass mark (%)', type: 'number', min: 0, max: 100 },
+      H('Results and grading', 'Each weight counts in proportion to the total; parts a learner has no marks for yet are left out.'),
+      { name: 'passPercent', label: 'Pass mark (%)', type: 'number', min: 0, max: 100 }, { name: 'attendanceWarning', label: 'Attendance warning (%)', type: 'number', min: 0, max: 100 },
       { name: 'weightAssignments', label: `Weight — ${t('assignments', true)} (%)`, type: 'number', min: 0, max: 100 }, { name: 'weightAssessment', label: 'Weight — final assessment (%)', type: 'number', min: 0, max: 100 }, { name: 'weightQuiz', label: `Weight — ${t('quizzes', true)} (%)`, type: 'number', min: 0, max: 100 }, { name: 'weightAttendance', label: 'Weight — attendance (%)', type: 'number', min: 0, max: 100 },
       { name: 'gradeBands', label: 'Grade bands', full: true, help: 'Grade:minimum % pairs separated by |, highest first. Anything below the last band is F.' },
-      { name: 'feedbackAtPercent', label: 'Ask for feedback at progress (%)', type: 'number', min: 0, max: 100 }, { name: 'certificatePrefix', label: 'Certificate number prefix' }, { name: 'currency', label: 'Currency code' },
+      H('Certificates, feedback and fees'),
+      { name: 'completionPercent', label: 'Certificate eligibility — progress (%)', type: 'number', min: 0, max: 100 }, { name: 'feedbackAtPercent', label: 'Ask for feedback at progress (%)', type: 'number', min: 0, max: 100 }, { name: 'certificatePrefix', label: 'Certificate number prefix' }, { name: 'currency', label: 'Currency code' },
+      H('Lists used in forms', 'Options offered when creating courses, batches and fees.'),
       { name: 'programTypes', label: 'Program types', full: true, help: 'value:Label pairs separated by |' }, { name: 'levels', label: 'Levels', full: true, help: 'Separated by |' },
-      { name: 'deliveryModes', label: 'Delivery modes', full: true, help: 'value:Label pairs separated by |' }, { name: 'feeTypes', label: `${t('fee')} types`, full: true, help: 'Separated by |' },
-      { name: 'showDemoAccounts', label: 'Demo accounts', type: 'checkbox', checkLabel: 'Show demo account shortcuts on the sign-in page (turn off in production)' }
+      { name: 'deliveryModes', label: 'Delivery modes', full: true, help: 'value:Label pairs separated by |' }, { name: 'feeTypes', label: `${t('fee')} types`, full: true, help: 'Separated by |' }
     ] },
     auth: { section: 'auth', fields: [
+      { name: 'showDemoAccounts', label: 'Demo accounts', type: 'checkbox', full: true, checkLabel: 'Show demo account shortcuts on the sign-in page (turn off in production)' }, // stored in lms
       { name: 'googleEnabled', label: 'Google', type: 'checkbox', checkLabel: 'Show "Continue with Google" on the sign-in page (when Google is enabled in Supabase)' },
       { name: 'googleSignUpRole', label: 'New Google users', type: 'select', options: () => db().roles.map(r => ({ value: r.id, label: `Create an account with role: ${r.name}` })), placeholderOption: 'Do not create accounts — only existing users can sign in', full: true, help: 'Existing users are always matched by their email address.' }
     ] },
-    features: { section: 'features', fields: Object.keys(DEFAULT_SETTINGS.features).map(k => ({ name: k, label: k, type: 'checkbox', checkLabel: {
+    features: { section: 'features', fields: Object.keys(DEFAULT_SETTINGS.features).map(k => ({ name: k, label: k, type: 'checkbox', ai: k === 'courseGen' || /^ai/.test(k) && k !== 'ai', checkLabel: {
       attendance: 'Attendance tracking', results: 'Results & grading', certificates: 'Certificates & verification', fees: `${t('fees')} & payments`, messages: 'Private messaging', announcements: 'Announcements', calendar: 'Training calendar', feedback: 'Mid-course feedback prompts',
       ai: 'SDC Learn AI (master)', quizzes: 'Graded quizzes', aiTutor: 'AI Tutor', aiSummarize: 'Resource summarizer', aiPractice: 'Private practice quizzes', aiEvaluate: 'Assignment evaluator', aiQuizGen: 'Quiz generator', aiAtRisk: 'At-risk advisories', courseGen: 'AI course generator ("Generate with SDC Learn AI" on the courses page, and session content in the Course Builder)'
-    }[k] || k })) }
+    }[k] || k }))
+      .sort((a, b) => (a.name === 'ai' ? 1 : a.ai ? 2 : 0) - (b.name === 'ai' ? 1 : b.ai ? 2 : 0))
+      .flatMap((f, i, all) => [...(i === 0 ? [H('Platform modules', 'Turn whole areas of the platform on or off for everyone.')] : f.name === 'ai' ? [H('SDC Learn AI', 'The first switch turns every AI feature on or off (the same switch as in Integrations). Each feature can also be switched on its own.')] : []), f]) }
   };
-  ctx.root.innerHTML = `${pageHead('Settings', 'Everything here is applied instantly across the platform — no code changes needed.')}
+  ctx.root.innerHTML = `${pageHead('Settings', 'Platform-wide settings for everyone. Each tab saves on its own; switches save as soon as they are flipped.')}
     <div class="tabs" role="tablist">${tabs.map(([k, l, i]) => `<a role="tab" class="tab ${tab === k ? 'active' : ''}" href="#/settings?tab=${k}" aria-selected="${tab === k}">${icon(i, 16)} ${esc(l)}</a>`).join('')}</div><div data-pane></div>`;
   const pane = ctx.root.querySelector('[data-pane]');
+  ctx.root.querySelector('.tab.active')?.scrollIntoView({ block: 'nearest', inline: 'center' }); // phones: the tab bar scrolls
+  // Unsaved edits: the save bar says so, and switching tabs asks first.
+  ctx.root.querySelectorAll('.tabs .tab').forEach(a => a.addEventListener('click', async e => {
+    if (pane.dataset.dirty !== '1' || a.classList.contains('active')) return;
+    e.preventDefault();
+    if (await confirmDialog('You have changes on this tab that are not saved. Leave without saving?', { title: 'Unsaved changes', confirmText: 'Leave without saving', danger: true })) { pane.dataset.dirty = ''; location.hash = a.getAttribute('href'); }
+  }));
   if (tab === 'integrations') {
     renderIntegrationsPane(pane, ctx);
     return;
@@ -853,15 +875,33 @@ App.route('/settings', { perm: 'settings', render(ctx) {
       try { const data = JSON.parse(await f.text()); if (!Array.isArray(data.users) || !data.users.length) throw new Error('This file is not a valid backup.'); if (!(await confirmDialog('Replace all current data with this backup?', { danger: true, confirmText: 'Restore' }))) return; saveDB(window.SDCCloud?.carryBase ? SDCCloud.carryBase(db(), data) : data); toast('Backup restored.'); setTimeout(() => location.reload(), 500); }
       catch (err) { toast(err.message || 'Could not read backup.', 'error'); }
     };
-    pane.querySelector('[data-reset]').onclick = async () => { if (await confirmDialog('Reset all data to the demo catalogue? This cannot be undone.', { danger: true, confirmText: 'Reset' })) { resetDemoData(); window.SDCCloud?.syncNow?.(); toast('Demo data restored.'); setTimeout(() => location.reload(), 500); } };
+    pane.querySelector('[data-reset]').onclick = () => {
+      const live = !/local only|not configured/i.test(String(window.SDC_CLOUD_STATUS || 'not configured'));
+      const m = openModal({ title: 'Reset to demo data', body: `<div class="alert alert-danger" role="alert"><b>Every record is replaced by the demo catalogue.</b> ${live ? 'Cloud sync is on, so this replaces the <b>shared data for every user</b>.' : 'This cannot be undone.'} Download a backup first if you may need the current data.</div><div class="field mt"><label class="label" for="reset-confirm">Type RESET to confirm</label><input class="input" id="reset-confirm" autocomplete="off"></div>`,
+        footer: `<button class="btn btn-ghost" data-modal-close>Cancel</button><button class="btn btn-danger" data-go disabled>${icon('trash', 16)} Reset all data</button>` });
+      const box = m.querySelector('#reset-confirm'), go = m.querySelector('[data-go]');
+      box.oninput = () => { go.disabled = box.value.trim() !== 'RESET'; };
+      go.onclick = () => { m.close(); resetDemoData(); window.SDCCloud?.syncNow?.(); toast('Demo data restored.'); setTimeout(() => location.reload(), 500); };
+    };
     fetch('/api/health').then(r => r.json()).then(j => { pane.querySelector('[data-health]').textContent = j.status === 'ok' ? 'Online' : 'Unavailable'; }).catch(() => { pane.querySelector('[data-health]').textContent = 'Offline — files fall back to browser storage'; });
     return;
   }
-  const g = groups[tab], values = s[g.section], readOnly = !can('settings', 'edit');
-  pane.innerHTML = `<form class="card" novalidate>${formHTML(g.fields, values)}${tab === 'brand' ? `<div class="sub-section"><h3>Upload logo</h3><div class="row gap-sm wrap"><img src="${esc(resolveAsset(values.logoUrl))}" class="logo-preview" alt="Current logo"><label class="btn btn-ghost file-btn">${icon('upload', 16)} Choose image<input type="file" accept=".svg,.png,.jpg,.jpeg,.webp" hidden data-logo></label><span class="small muted">SVG or PNG, square, up to 1 MB.</span></div></div>` : ''}${tab === 'auth' ? `<div class="sub-section"><h3>Google setup</h3><dl class="facts"><div><dt>Provider in Supabase</dt><dd data-gstatus>Checking…</dd></div><div><dt>Redirect URL</dt><dd>${copyRow('URL', location.origin + '/login.html', true)}</dd></div></dl><p class="help">Add this redirect URL (and every other domain you use, e.g. localhost) in Supabase → Authentication → URL Configuration → Redirect URLs. The Google client ID and secret live in Supabase → Authentication → Providers → Google.</p></div>` : ''}${tab === 'appearance' ? `<div class="sub-section"><h3>Preview</h3><div class="row gap-sm wrap"><button type="button" class="btn btn-primary">Primary</button><button type="button" class="btn btn-secondary">Secondary</button>${badge('Today', 'accent')}${badge('Submit', 'highlight')}${badge('Upcoming')}</div></div>` : ''}<div class="form-foot"><button type="button" class="btn btn-ghost" data-defaults>Restore defaults</button><button class="btn btn-primary" type="submit">${icon('check', 16)} Save ${esc(tabs.find(x => x[0] === tab)[1].toLowerCase())}</button></div></form>`;
+  const g = groups[tab], values = tab === 'auth' ? { ...s.auth, showDemoAccounts: s.lms.showDemoAccounts } : tab === 'features' ? { ...s.features, ai: Domain.aiEnabled() } : s[g.section], readOnly = !can('settings', 'edit');
+  pane.innerHTML = `<form class="card" novalidate>${formHTML(g.fields, values)}${tab === 'brand' ? `<div class="sub-section"><h3>Upload logo</h3><div class="row gap-sm wrap"><img src="${esc(resolveAsset(values.logoUrl))}" class="logo-preview" alt="Current logo"><label class="btn btn-ghost file-btn">${icon('upload', 16)} Choose image<input type="file" accept=".svg,.png,.jpg,.jpeg,.webp" hidden data-logo></label><span class="small muted">SVG or PNG, square, up to 1 MB.</span></div></div>` : ''}${tab === 'auth' ? `<div class="sub-section"><h3>Google setup</h3><dl class="facts"><div><dt>Google in Supabase</dt><dd data-gstatus>Checking…</dd></div><div><dt>Redirect URL</dt><dd>${copyRow('URL', location.origin + '/login.html', true)}</dd></div></dl><p class="help">Add this redirect URL (and every other domain you use, e.g. localhost) in Supabase → Authentication → URL Configuration → Redirect URLs. The Google client ID and secret live in Supabase → Authentication → Providers → Google.</p></div>` : ''}${tab === 'appearance' ? `<div class="sub-section"><h3>Preview</h3><div class="row gap-sm wrap"><button type="button" class="btn btn-primary">Primary</button><button type="button" class="btn btn-secondary">Secondary</button>${badge('Today', 'accent')}${badge('Submit', 'highlight')}${badge('Upcoming')}</div></div>` : ''}${tab === 'learning' ? '<p class="help weights-share" data-weights aria-live="polite"></p>' : ''}<div class="form-foot"><span class="dirty-note" data-dirty-note hidden>${icon('alert', 14)} Unsaved changes</span>${tab === 'features' ? '<span class="small muted grow">Switches save as soon as they are flipped.</span>' : ''}<button type="button" class="btn btn-ghost" data-defaults>Restore defaults</button>${tab === 'features' ? '' : `<button class="btn btn-primary" type="submit">${icon('check', 16)} Save ${esc(tabs.find(x => x[0] === tab)[1].toLowerCase())}</button>`}</div></form>`;
   const form = pane.querySelector('form');
   if (readOnly) { pane.querySelectorAll('input,select,textarea,button').forEach(x => x.disabled = true); pane.querySelector('.form-foot').innerHTML = badge('View only — you do not have permission to change settings'); }
   bindColorFields(pane);
+  if (tab !== 'features') form.addEventListener('input', () => { pane.dataset.dirty = '1'; pane.querySelector('[data-dirty-note]').hidden = false; });
+  if (tab === 'features') { // AI feature switches follow the SDC Learn AI switch
+    const sync = () => { const on = form.elements.ai?.checked; g.fields.filter(f => f.ai).forEach(f => { const el = form.elements[f.name]; if (el && !readOnly) el.disabled = !on; el?.closest('.field')?.classList.toggle('is-off', !on); }); };
+    sync(); form.addEventListener('change', sync);
+  }
+  if (tab === 'learning') { // the weights are relative: show each one's real share
+    const W = [['weightAssignments', t('assignments')], ['weightAssessment', 'Final assessment'], ['weightQuiz', t('quizzes')], ['weightAttendance', 'Attendance']];
+    const show = () => { const v = W.map(([k]) => Math.max(0, Number(form.elements[k].value) || 0)), tot = v.reduce((a, b) => a + b, 0); pane.querySelector('[data-weights]').innerHTML = tot ? `Final result: ${W.map(([, l], i) => `${esc(l)} <b>${Math.round(v[i] / tot * 100)}%</b>`).join(' · ')}${tot !== 100 ? ` <span class="muted">(weights add up to ${tot}; shares are worked out from the total)</span>` : ''}` : '<span class="text-danger">At least one weight must be greater than zero.</span>'; };
+    pane.querySelector('[data-field="weightAttendance"]').after(pane.querySelector('[data-weights]')); // next to the weights
+    show(); form.addEventListener('input', e => { if (/^weight/.test(e.target.name)) show(); });
+  }
   if (tab === 'auth') { bindCopyButtons(pane); const c = window.SDC_CLOUD_CONFIG || {}; const el = pane.querySelector('[data-gstatus]'); if (!c.url) el.textContent = 'Supabase not configured (js/cloud-config.js)'; else fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.anonKey } }).then(r => r.json()).then(j => { el.innerHTML = j.external?.google ? badge('Enabled', 'success') : badge('Not enabled', 'warning'); }).catch(() => { el.textContent = 'Could not reach Supabase'; }); }
   if (tab === 'appearance') form.querySelectorAll('input[type=color]').forEach(i => i.addEventListener('input', () => { document.documentElement.style.setProperty({ primary: '--brand', accent: '--accent', highlight: '--highlight' }[i.name], i.value); }));
   pane.querySelector('[data-logo]')?.addEventListener('change', async e => {
@@ -875,7 +915,10 @@ App.route('/settings', { perm: 'settings', render(ctx) {
     const miss = g.fields.find(f => f.required && !r[f.name]); if (miss) return toast(`${miss.label} is required.`, 'error');
     if (tab === 'auth' && r.googleSignUpRole && r.googleSignUpRole !== settings().auth.googleSignUpRole && !coversRole(findRecord('roles', r.googleSignUpRole))) return toast(CEILING_MSG, 'error');
     if (tab === 'learning') { const w = Number(r.weightAssignments) + Number(r.weightAssessment) + Number(r.weightQuiz || 0) + Number(r.weightAttendance); if (w <= 0) return toast('At least one result weight must be greater than zero.', 'error'); r.allowedTypes = csvList(r.allowedTypes).join(','); }
-    const d = db(); d.settings[g.section] = { ...d.settings[g.section], ...r }; saveDB(d);
+    const d = db();
+    if (tab === 'auth') { d.settings.lms = { ...d.settings.lms, showDemoAccounts: r.showDemoAccounts }; delete r.showDemoAccounts; }
+    if (tab === 'features') d.settings.integrations = { ...Domain.integrations(), aiEnabled: r.ai }; // one SDC Learn AI switch (also in Integrations)
+    d.settings[g.section] = { ...d.settings[g.section], ...r }; saveDB(d); pane.dataset.dirty = '';
     // Rebuild the shell first: mountShell replaces the page, which used to wipe the confirmation toast.
     applyTheme(); App.mountShell(); App.render(true); toast(tab === 'features' ? 'Feature settings saved.' : 'Settings saved.');
   };

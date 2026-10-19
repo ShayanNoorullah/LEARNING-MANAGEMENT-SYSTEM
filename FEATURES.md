@@ -440,18 +440,18 @@ Role management:
 
 ## 11. Settings
 
-Everything below is changed in the UI by a coordinator, with no code changes.
+Everything below is changed in the UI by a coordinator, with no code changes. Each tab has its own Save button (Features switches save as soon as they are flipped). Edited but unsaved fields show **Unsaved changes** next to the Save button, and switching to another tab asks first. An unknown `?tab=` opens Branding; on phones the tab bar scrolls the open tab into view.
 
 | Tab | What it controls |
 |---|---|
 | **Branding** | Product and organisation names, tagline, square logo, full logo lockup, website, phone, email, address, footer text |
 | **Appearance** | Primary, accent and highlight colours, corner radius, default light or dark theme |
-| **Terminology** | The name of every term: Learner, Instructor, Coordinator, Course, Session, Module, Batch, Program, Division, Assignment, Fee, Quiz, Attempt, AI Tutor |
-| **Learning** | Help URL, upload endpoint, upload size and file types, browser fallback limit, late policy, completion threshold, attendance warning threshold, result weights, grade bands, pass mark, certificate prefix, currency, program types, levels, delivery modes, fee types, feedback prompt percentage, demo-account shortcuts |
-| **Features** | On/off switches for attendance, results, certificates, fees, messages, announcements, calendar, feedback, quizzes, each AI feature and the AI course generator (off by default). A switch is saved as soon as it is flipped |
-| **Sign-in** | Show or hide "Continue with Google", and what happens to unknown Google emails |
-| **Integrations** | AI providers, capability map, budget and usage |
-| **Data** | Backup and restore as JSON, reset to demo data, storage and upload-server status, cloud sync status |
+| **Terminology** | The name of every term: Learner, Instructor, Coordinator, Course, Session, Module, Batch, Program, Division, Assignment, Fee, Quiz, Attempt, AI Tutor. Singular and plural forms sit side by side |
+| **Learning** | Grouped as *Help and uploads* (help URL, upload endpoint, size and file types, browser fallback limit, late policy), *Results and grading* (pass mark, attendance warning, result weights with a live line showing each part's real share of the final result, grade bands), *Certificates, feedback and fees* (completion threshold, feedback prompt percentage, certificate prefix, currency) and *Lists used in forms* (program types, levels, delivery modes, fee types) |
+| **Features** | *Platform modules* (attendance, results, certificates, fees, messages, announcements, calendar, feedback, quizzes) and *SDC Learn AI* (the AI switch, each AI feature and the AI course generator, off by default). A switch is saved as soon as it is flipped. The SDC Learn AI switch is the same switch as in Integrations; while it is off, the AI feature switches are greyed out |
+| **Sign-in** | Demo-account shortcuts on the sign-in page, show or hide "Continue with Google", and what happens to unknown Google emails |
+| **Integrations** | The SDC Learn AI on/off switch, AI providers, YouTube videos key, the capability map (provider and optional model per feature), and *Fallback, budget and privacy* (primary and fallback provider, monthly call budget with this month's use, hard stop, personal-details removal). The map and the limits save together with **Save routing and limits** |
+| **Data** | Backup and restore as JSON, reset to demo data (asks to type RESET, and warns when cloud sync would replace the shared data), storage and upload-server status, cloud sync status |
 
 Each user also has their own light/dark toggle in the top bar.
 
