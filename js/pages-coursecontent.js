@@ -149,6 +149,37 @@ async function tcStorageOk(parts) {
   return confirmDialog(`This browser has about ${kb(u.free)} of room left (${u.pct}% used) and this run needs about ${kb(need)}. Results that do not fit cannot be stored here and the run will stop at the first one. Download a backup and free up space first, or go on anyway?`, { title: 'Browser storage is nearly full', confirmText: 'Go on anyway', danger: true });
 }
 const TC_COLLAPSED = new Set(); // courses whose pause panel the coordinator folded away ("Pause and resume later")
+// Replacement consent is specific to the part's current text, not to a session forever. Changes to
+// other parts do not invalidate it; edits / accepted repairs to this part while AI runs do.
+function tcPartStamp(s, part) {
+  const c = s?.content || {}, m = c.meta || {}, edited = (m.edited?.parts || []).includes(part);
+  return CCL.fieldHash({ fields: Object.fromEntries(CCL.FIELDS_OF(part).map(k => [k, c[k]])), info: m.parts?.[part] || null,
+    edited: edited ? { by: m.edited.by, at: m.edited.at } : null, instructions: m.instructions || '' });
+}
+function tcProtectedParts(s) {
+  return CCL.PARTS.filter(p => CCL.sessionState(s).editedParts.includes(p) || s.content?.meta?.parts?.[p]?.repaired ||
+    CCL.historyOf(s.content).some(h => h.part === p && h.kind === 'restore'));
+}
+async function tcPrepareJobs(course, jobs) {
+  const replacements = [];
+  const prepared = jobs.map(j => {
+    const s = findRecord('sessions', j.sessionId), done = CCL.sessionState(s).done, replace = {}, fill = new Set(j.fill || []), repairParts = new Set(j.repairParts || []);
+    j.parts.forEach(p => {
+      if (j.repairKeys?.[p] || (j.proposeParts || []).includes(p)) return; // proposals never replace text
+      if (!done.includes(p) || fill.has(p)) { fill.add(p); return; }
+      replace[p] = tcPartStamp(s, p); repairParts.add(p);
+      const tags = [CCL.sessionState(s).editedParts.includes(p) ? 'manually edited' : '', s.content?.meta?.parts?.[p]?.repaired ? 'AI repair accepted' : '', tcProtectedParts(s).includes(p) ? 'protected content' : ''].filter(Boolean);
+      replacements.push(`${s.title}: ${CCL.PART_LABEL[p]}${tags.length ? ' (' + tags.join(', ') + ')' : ''}`);
+    });
+    return { ...j, fill: [...fill], repairParts: [...repairParts], replace };
+  });
+  if (replacements.length) {
+    const via = AIRoute.named(AIRoute.resolve(course.id, 'contentRepair'), await AIRoute.status());
+    const ok = await confirmDialog(`Regenerate with ${via.label}? This sends AI requests and replaces the following existing content:\n\n${replacements.join('\n')}\n\nAll fields in each listed part will be replaced, including manual edits and accepted AI repairs. Other parts are kept. Any approval is withdrawn; review and approve the new content again. The replaced text stays in Change history for restore.`, { title: 'Replace existing content with AI?', confirmText: 'Regenerate and replace', danger: true });
+    if (!ok) return null;
+  }
+  return prepared;
+}
 // The parts a paused or stopped run still has to write, as jobs. From the run when this page still has it
 // (a regenerate or a repair resumes as that, not as new generation); from what is stored otherwise. Parts that
 // were only to be filled in are left out once they exist, so nothing finished or edited is asked for again.
@@ -166,6 +197,7 @@ function tcResumeJobs(course, run, list) {
       if (j.proposeParts) o.proposeParts = j.proposeParts.filter(p => rest.includes(p));
       if (j.repairKeys) o.repairKeys = Object.fromEntries(rest.filter(p => j.repairKeys[p]).map(p => [p, j.repairKeys[p]]));
       if (j.fill) o.fill = j.fill.filter(p => rest.includes(p));
+      if (j.replace) o.replace = Object.fromEntries(rest.filter(p => j.replace[p]).map(p => [p, j.replace[p]]));
       jobs.push(o);
     }
     if (jobs.length) return jobs;
@@ -209,6 +241,14 @@ const TCRun = (() => {
     if (job.repairKeys?.[part]) return runRepair(run, job, part);
     const course = findRecord('courses', run.courseId), session = findRecord('sessions', job.sessionId);
     if (!course || !session) return { ok: false, code: 'gone', message: `This ${t('session', true)} no longer exists.` };
+    const changed = s => job.replace?.[part] && job.replace[part] !== tcPartStamp(s, part);
+    const filled = s => (job.fill || []).includes(part) && CCL.sessionState(s).done.includes(part);
+    const skip = () => {
+      (job.skipped ||= []).push(part);
+      if (typeof toast === 'function') toast(`${CCL.PART_LABEL[part]} kept: it changed or was filled after generation was requested. Review it before regenerating.`, 'warning');
+      return { ok: true, skipped: true, tokens: 0, calls: 0, ms: 0 };
+    };
+    if (changed(session) || filled(session)) return skip();
     const sessions = Domain.courseSessions(course.id, true), i = sessions.findIndex(s => s.id === session.id);
     const basis = JSON.parse(JSON.stringify(session.content || {})); // what the AI is shown: a repair proposal is checked against it
     const standing = session.content?.meta?.instructions || '', instructions = [standing, job.instructions].filter(x => String(x || '').trim()).join('\n');
@@ -228,9 +268,8 @@ const TCRun = (() => {
     const at = new Date().toISOString(), by = typeof App !== 'undefined' ? App.user?.id || '' : '';
     // A part that was only to be filled in (it was missing when the run started) is not written if it exists by
     // now: a person wrote it, or another tab or another provider did. The answer is dropped, nothing is replaced.
-    if (r.ok && (job.fill || []).includes(part) && CCL.sessionState(fresh).done.includes(part)) {
-      (job.skipped ||= []).push(part);
-      return { ok: true, skipped: true, tokens: r.meta.tokens, calls: r.meta.calls, ms: r.meta.ms };
+    if (changed(fresh) || filled(fresh)) {
+      return { ...skip(), tokens: r.meta?.tokens || r.tokens || 0, calls: r.meta?.calls || r.calls || 0, ms: r.meta?.ms || r.ms || 0 };
     }
     // Repair with AI: the answer is kept as a proposal and the content is not touched. The proposal remembers
     // the content the AI was shown (`basis`, copied before the request), so a change made while it worked is
@@ -325,7 +364,15 @@ const TCRun = (() => {
     const prev = runs.get(courseId); // a provider that limited the last run will limit this one too
     const run = { courseId, jobs: jobs.map(j => ({ ...j, state: 'queued', part: null, doneParts: [], errors: [] })), total: jobs.reduce((n, j) => n + j.parts.length, 0), done: 0, calls: 0, tokens: 0, started: Date.now(), active: true, stop: false, maxWorkers: prev?.maxWorkers || (paced() ? 1 : 2), gapMs: prev?.gapMs || paced(), nextSlot: 0 };
     runs.set(courseId, run);
-    Promise.all(Array.from({ length: Math.min(2, jobs.length) }, (_, i) => worker(run, i))).then(() => {
+    const work = () => Promise.all(Array.from({ length: Math.min(2, jobs.length) }, (_, i) => worker(run, i)));
+    // shortcut: Web Locks exclude same-browser tabs, not other devices; server job leases are needed for that.
+    const task = typeof navigator !== 'undefined' && navigator.locks?.request
+      ? navigator.locks.request('sdc-course-content:' + courseId, { ifAvailable: true }, lock => {
+        if (lock) return work();
+        run.stop = true; run.fatal = 'This course has an AI run in another tab. Wait for it to finish before starting again.';
+        if (typeof toast === 'function') toast(run.fatal, 'warning');
+      }) : work();
+    task.catch(e => { run.stop = true; run.fatal = e.message || 'The AI run stopped unexpectedly. Saved parts are kept.'; }).finally(() => {
       run.jobs.forEach(j => { if (j.state === 'queued') j.state = 'stopped'; });
       run.active = false; run.ended = Date.now(); emit(run);
     });
@@ -360,7 +407,7 @@ function builderContent(pane, course, ctx) {
   function draw() {
     if (!pane.isConnected) { off?.(); return; }
     const list = sessions(), c = cur(), run = TCRun.get(course.id), chk = CCL.courseChecks(c, list), use = tcUsage(c, list);
-    const missing = list.filter(s => CCL.sessionState(s).missing.length || CCL.sessionState(s).outdated.length);
+    const missing = list.filter(s => CCL.sessionState(s).missing.length);
     const keep = window.scrollY;
     pane.innerHTML = `
       ${!allowed ? `<div class="alert cg-note">${can('ai', 'use') ? 'AI course generation is turned off in Settings → Features (AI course generator), or SDC Learn AI is off.' : 'Your role cannot use SDC Learn AI.'} You can still review and edit existing content.</div>` : ''}
@@ -368,7 +415,7 @@ function builderContent(pane, course, ctx) {
         <div class="row-between wrap gap-sm"><div><h3>Course content ${icon('sparkles', 15)}</h3><p class="muted small">Complete written teaching material for every ${esc(t('session', true))}: objectives, lesson, tutorials, code, exercises, a homework brief, a quiz and notes for the ${esc(t('instructor', true))}. Generated in small parts and saved after each part. ${c.status === 'published' ? '' : `The ${esc(t('course', true))} is a draft, so ${esc(t('learners', true))} see none of it.`}</p></div>
           <div class="row gap-sm wrap">${run?.active
             ? `<button class="btn btn-ghost btn-sm" data-stop ${run.stop ? 'disabled' : ''}>${run.stop ? 'Stopping…' : 'Stop'}</button>`
-            : allowed && list.length ? `<button class="btn btn-primary btn-sm" data-gen-all ${missing.length ? '' : 'disabled'}>${icon('sparkles', 15)} ${list.some(s => s.content) ? (missing.length ? `Generate missing content (${missing.length})` : 'All content generated') : 'Generate Full Course Content with AI'}</button>` : ''}</div></div>
+            : allowed && list.length ? `${list.some(s => !s.videoUrl) ? `<button class="btn btn-secondary btn-sm" data-find-videos>${icon('video', 15)} Find YouTube videos (${list.filter(s => !s.videoUrl).length})</button>` : ''}<button class="btn btn-primary btn-sm" data-gen-all ${missing.length ? '' : 'disabled'}>${icon('sparkles', 15)} ${list.some(s => s.content) ? (missing.length ? `Generate missing content (${missing.length})` : 'All content generated') : 'Generate Full Course Content with AI'}</button>` : ''}</div></div>
         <div class="tc-routeline" data-route-line></div>
         ${run ? tcRunPanel(run) : ''}
         <div class="tc-usage small muted">${use.calls ? `${icon('sparkles', 13)} ${use.calls} AI request${use.calls === 1 ? '' : 's'}${use.failedCalls ? ` (${use.failedCalls} failed)` : ''} · ${use.tokens.toLocaleString('en')} tokens · ${tcDur(use.ms)} of generation${use.models.length ? ` · ${esc(use.models.join(', '))}` : ''}${use.links ? ` · ${use.links} unverifiable link${use.links === 1 ? '' : 's'} removed` : ''}` : 'No AI content generated yet.'}</div>
@@ -385,8 +432,27 @@ function builderContent(pane, course, ctx) {
     const pause = tcPauseOf(run, list);
     if (pause) fillPause(pane.querySelector('[data-pause]'), pause, run, list);
   }
+  // A YouTube video for each session that has none (the same search as the AI course generator). Sessions that
+  // already have a video or recording are never touched; a found video can be changed in the Sessions tab.
+  async function findVideos(e) {
+    const btn = e.currentTarget, c = cur(), CG = CourseGenLogic;
+    const items = sessions().map(s => ({ id: s.id, title: s.title, video: s.videoUrl ? { id: CG.youtubeId(s.videoUrl) || 'other:' + s.id } : undefined }));
+    const o = { title: c.title, modules: [{ sessions: items }] }, targets = CG.videoTargets(o);
+    if (!targets.length) return;
+    if (!(await confirmDialog(`Search YouTube for a video for ${targets.length === 1 ? `the ${t('session', true)}` : `each of the ${targets.length} ${t('sessions', true)}`} without one? Each video found is attached to its ${t('session', true)}; check it on the ${t('session', true)} page and change or remove it in the Sessions tab. ${t('sessions')} that already have a video are not changed.`, { title: 'Find YouTube videos', confirmText: 'Find videos' }))) return;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Finding videos…';
+    try {
+      const j = await SDCAI.videos({ feature: 'courseContent', queries: targets.map(x => CG.videoQuery(o, x)) });
+      CG.assignVideos(o, targets, j.results);
+      let n = 0;
+      targets.forEach(x => { const s = findRecord('sessions', x.id); if (x.video && s && !s.videoUrl) { updateRecord('sessions', s.id, { videoUrl: CG.watchUrl(x.video.id), videoTitle: x.video.title, videoChannel: x.video.channel }); n++; } });
+      toast(`${n} video${n === 1 ? '' : 's'} attached${n < targets.length ? `; none suitable for ${targets.length - n}` : ''}.${j.source === 'demo' ? ' Demo mode: these are placeholders, not real videos.' : ''}${j.stopped ? ' ' + j.stopped : ''}`, n ? 'success' : 'warning');
+    } catch (err) { toast(err.message || 'Videos could not be found.', 'error'); }
+    draw();
+  }
   function bind() {
     pane.querySelector('[data-gen-all]')?.addEventListener('click', startAll);
+    pane.querySelector('[data-find-videos]')?.addEventListener('click', findVideos);
     pane.querySelector('[data-stop]')?.addEventListener('click', () => TCRun.stop(course.id));
     pane.querySelector('[data-review]')?.addEventListener('click', runReview);
     pane.querySelector('[data-fit-time]')?.addEventListener('click', fitTimes);
@@ -395,7 +461,11 @@ function builderContent(pane, course, ctx) {
     pane.querySelectorAll('[data-regen]').forEach(b => b.onclick = () => tcRegenModal(course, findRecord('sessions', b.dataset.regen), jobs => startJobs(jobs)));
     pane.querySelectorAll('[data-repair-review]').forEach(b => b.onclick = () => tcRepairModal(course, b.dataset.repairReview, null, draw, allowed ? jobs => startJobs(jobs) : null));
     pane.querySelectorAll('[data-repair-open]').forEach(b => b.onclick = () => tcRepairSelectModal(course, findRecord('sessions', b.dataset.repairOpen), jobs => startJobs(jobs), draw));
-    pane.querySelectorAll('[data-retry]').forEach(b => b.onclick = () => { const s = findRecord('sessions', b.dataset.retry), st = CCL.sessionState(s); const parts = CCL.PARTS.filter(p => st.missing.includes(p) || st.outdated.includes(p)); startJobs([{ sessionId: s.id, parts, fill: parts.filter(p => st.missing.includes(p)) }]); });
+    pane.querySelectorAll('[data-retry]').forEach(b => b.onclick = () => {
+      const s = findRecord('sessions', b.dataset.retry), st = CCL.sessionState(s);
+      if (st.outdated.length) return tcRegenModal(course, s, jobs => startJobs(jobs));
+      startJobs([{ sessionId: s.id, parts: st.missing, fill: st.missing }]);
+    });
     pane.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => approve(b.dataset.approve, true));
     pane.querySelectorAll('[data-unapprove]').forEach(b => b.onclick = () => approve(b.dataset.unapprove, false));
     pane.querySelectorAll('[data-prop]').forEach(b => b.onclick = () => proposal(b.dataset.prop, b.dataset.mode));
@@ -404,17 +474,19 @@ function builderContent(pane, course, ctx) {
     bindCopyButtons(pane);
   }
   async function startJobs(jobs) {
+    if (TCRun.get(course.id)?.active) return false;
     jobs = jobs.filter(j => j.parts.length);
-    if (!jobs.length) return toast('Nothing to generate.', 'warning');
-    if (!(await tcStorageOk(jobs.reduce((k, j) => k + j.parts.length, 0)))) return;
-    TCRun.start(course.id, jobs); draw();
+    if (!jobs.length) { toast('Nothing to generate.', 'warning'); return false; }
+    const prepared = await tcPrepareJobs(course, jobs);
+    if (!prepared || !(await tcStorageOk(jobs.reduce((k, j) => k + j.parts.length, 0))) || TCRun.get(course.id)?.active) return false;
+    TCRun.start(course.id, prepared); draw();
+    return true;
   }
   async function startAll() {
-    const list = sessions(), jobs = list.map(s => { const st = CCL.sessionState(s), parts = CCL.PARTS.filter(p => st.missing.includes(p) || st.outdated.includes(p)); return { sessionId: s.id, parts, fill: parts.filter(p => st.missing.includes(p)) }; }).filter(j => j.parts.length);
+    const list = sessions(), jobs = list.map(s => { const parts = CCL.sessionState(s).missing; return { sessionId: s.id, parts, fill: parts }; }).filter(j => j.parts.length);
     if (!jobs.length) return toast('Every session already has its content.', 'success');
-    const outdatedEdited = jobs.filter(j => { const st = CCL.sessionState(findRecord('sessions', j.sessionId)); return j.parts.some(p => st.editedParts.includes(p)); });
     const n = jobs.reduce((k, j) => k + j.parts.length, 0), via = AIRoute.named(AIRoute.resolve(course.id, 'courseContent'), await AIRoute.status());
-    const ok = await confirmDialog(`Generate ${n} content part${n === 1 ? '' : 's'} for ${jobs.length} ${t(jobs.length === 1 ? 'session' : 'sessions', true)} with ${via.label}${via.source === 'temporary' ? ' (your temporary choice for this course)' : ''} (one AI request per part, about ${Math.max(1, Math.round(n * 20 / 2 / 60))} minute${n > 6 ? 's' : ''}). Content that already exists is kept; only missing${jobs.some(j => CCL.sessionState(findRecord('sessions', j.sessionId)).outdated.length) ? ' and out-of-date' : ''} parts are written.${outdatedEdited.length ? ` ${outdatedEdited.length} of them contain a person's edits that will be replaced.` : ''} If the provider runs out of quota or fails, generation pauses with everything written so far saved, and you choose here whether to retry or continue with another provider. Nothing is sent to another provider on its own. Keep this app open until it finishes.`, { title: 'Generate course content', confirmText: 'Generate' });
+    const ok = await confirmDialog(`Generate ${n} missing content part${n === 1 ? '' : 's'} for ${jobs.length} ${t(jobs.length === 1 ? 'session' : 'sessions', true)} with ${via.label}${via.source === 'temporary' ? ' (your temporary choice for this course)' : ''} (one AI request per part, about ${Math.max(1, Math.round(n * 20 / 2 / 60))} minute${n > 6 ? 's' : ''}). All existing content is kept, including out-of-date parts, manual edits and accepted repairs. Use Regenerate to replace an existing part. If the provider runs out of quota or fails, generation pauses with everything written so far saved, and you choose here whether to retry or continue with another provider. Nothing is sent to another provider on its own. Keep this app open until it finishes.`, { title: 'Generate course content', confirmText: 'Generate' });
     if (ok) startJobs(jobs);
   }
   // The course is waiting on a provider. Everything written is saved; the coordinator chooses: switch to another
@@ -597,7 +669,7 @@ function tcSessionRow(s, i, run, allowed) {
   return `<div class="tc-row"><span class="s-num">${i + 1}</span><div class="tc-rbody"><b>${esc(s.title)}</b><span class="small muted">${esc(s.moduleName || '')}${s.duration ? ` · ${esc(s.duration)}` : ''} · ${ok} of ${items.length} required items</span>
       <div class="tc-chips">${chips} ${s.content ? tcStateBadge(st, CCL.codeReport(s)) : ''}</div>${tcWrittenLine(s)}${errs.length ? `<p class="small text-danger">${esc(errs.join(' · '))}</p>` : ''}${Object.entries(s.content?.meta?.repairs?.errors || {}).map(([p, e]) => `<p class="small text-danger">${icon('alert', 12)} AI repair of the ${esc((CCL.PART_LABEL[p] || p).toLowerCase())} failed; nothing was changed. ${esc(e.message)}</p>`).join('')}${rep.findings.length ? `<p class="small ${rep.open ? 'text-warning' : 'muted'}">${icon('alert', 12)} ${rep.open ? `${rep.findings.length} code check${rep.findings.length === 1 ? '' : 's'} to review (${rep.errors} error${rep.errors === 1 ? '' : 's'}, ${rep.review} to confirm)` : `Code checks reviewed${rep.by ? ` by ${esc(findRecord('users', rep.by)?.name || 'a person')}` : ''}`}</p>` : ''}${pend.length ? `<p class="small text-warning">${icon('sparkles', 12)} ${pend.length} AI repair proposal${pend.length === 1 ? '' : 's'} waiting (${esc(pend.map(x => CCL.PART_LABEL[x.part].toLowerCase()).join(', '))}). The text has not been changed.</p>` : ''}${s.content?.meta?.instructions ? `<p class="small muted">${icon('edit', 12)} Instructions: ${esc(s.content.meta.instructions)}</p>` : ''}</div>
     <div class="tc-ractions">${pend.length && can('courses', 'edit') ? `<button class="btn btn-primary btn-sm" data-repair-review="${s.id}">${icon('sparkles', 14)} Review repair</button>` : ''}${s.content ? `<button class="btn btn-ghost btn-sm" data-view="${s.id}">${icon('eye', 14)} View</button>` : ''}
-      ${allowed && !busy && (st.failed.length || (st.done.length && st.missing.length) || st.outdated.length) ? `<button class="btn btn-secondary btn-sm" data-retry="${s.id}">${st.outdated.length && !st.failed.length ? 'Update' : 'Retry'}</button>` : ''}
+      ${allowed && !busy && (st.failed.length || (st.done.length && st.missing.length) || st.outdated.length) ? `<button type="button" class="btn btn-secondary btn-sm" data-retry="${s.id}">${icon('sparkles', 14)} ${st.outdated.length ? 'Regenerate outdated…' : 'Retry missing with AI'}</button>` : ''}
       ${allowed && !busy ? `<button class="btn btn-ghost btn-sm" data-regen="${s.id}">${icon('sparkles', 14)} ${st.done.length ? 'Regenerate' : 'Generate'}</button>` : ''}
       ${allowed && !busy && s.content ? `<button class="btn btn-ghost btn-sm" data-repair-open="${s.id}" title="Choose fields that look wrong; the AI writes a proposal and nothing is replaced until you accept it.">${icon('sparkles', 14)} Repair with AI</button>` : ''}
       ${can('courses', 'edit') ? (st.approved ? `<button class="btn btn-ghost btn-sm" data-unapprove="${s.id}">Withdraw approval</button>` : st.status === 'complete' ? (rep.open ? `<button class="btn btn-secondary btn-sm" data-view="${s.id}" title="${esc(CCL.approvalBlockers(s).join(' '))}">${icon('alert', 14)} Review code checks</button>` : `<button class="btn btn-primary btn-sm" data-approve="${s.id}">${icon('check', 14)} Approve</button>`) : '') : ''}</div></div>`;
@@ -836,26 +908,24 @@ async function tcRepairSelectModal(course, s, start, done) {
 /* ---------------------------------------------------- regenerate modal */
 function tcRegenModal(course, s, start) {
   if (!s || !start) return;
-  const st = CCL.sessionState(s), pre = CCL.PARTS.filter(p => !st.done.includes(p) || st.outdated.includes(p) || st.failed.includes(p));
+  const st = CCL.sessionState(s), protectedParts = tcProtectedParts(s), pre = CCL.PARTS.filter(p => !protectedParts.includes(p) && (!st.done.includes(p) || st.outdated.includes(p) || st.failed.includes(p)));
   // Parts a person edited start unticked: replacing an edit is always an explicit choice.
-  const unedited = CCL.PARTS.filter(p => !st.editedParts.includes(p)), checked = pre.length ? pre : unedited.length ? unedited : [];
+  const unedited = CCL.PARTS.filter(p => !protectedParts.includes(p)), checked = pre.length ? pre : unedited;
   const m = openModal({
     title: `${st.done.length ? 'Regenerate' : 'Generate'} content: ${s.title}`, size: 'md',
-    body: `<form data-f class="stack-sm"><div class="tc-routeline" data-route-line></div><fieldset class="tc-parts"><legend class="label">Parts</legend>${CCL.PARTS.map(p => `<label class="check"><input type="checkbox" name="p" value="${p}" ${checked.includes(p) ? 'checked' : ''}><span>${esc(CCL.PART_LABEL[p])}${st.done.includes(p) ? ' (replaces what is there)' : ''}${st.editedParts.includes(p) ? ` <b class="text-warning">· edited by a person</b>` : ''}</span></label>`).join('')}</fieldset>
+    body: `<form data-f class="stack-sm"><div class="tc-routeline" data-route-line></div><fieldset class="tc-parts"><legend class="label">Parts to generate with AI</legend>${CCL.PARTS.map(p => `<label class="check"><input type="checkbox" name="p" value="${p}" ${checked.includes(p) ? 'checked' : ''}><span>${esc(CCL.PART_LABEL[p])}${st.done.includes(p) ? ' (replaces ALL fields in this part)' : ''}${st.editedParts.includes(p) ? ` <b class="text-warning">· edited by a person</b>` : ''}${s.content?.meta?.parts?.[p]?.repaired ? ' · accepted AI repair' : ''}${protectedParts.includes(p) ? ' · protected, select explicitly to replace' : ''}</span></label>`).join('')}</fieldset>
       ${s.content?.meta?.instructions ? `<p class="small"><b>Standing instructions</b> (from applied proposals): ${esc(s.content.meta.instructions)}</p>` : ''}
       <div class="field"><label class="label" for="tc-ins">Extra instructions for this run (optional)</label><textarea class="input" id="tc-ins" name="ins" rows="3" maxlength="1500" placeholder="For example: use a library-management example throughout; add more practice on flexbox."></textarea></div>
       <p class="help">The ${esc(t('session', true))} title, summary and module are not changed. Each part is one AI request and is saved as soon as it is ready.</p></form>`,
-    footer: `<button class="btn btn-ghost" data-modal-close>Cancel</button><button class="btn btn-primary" data-go>${icon('sparkles', 15)} Generate</button>`
+    footer: `<button type="button" class="btn btn-ghost" data-modal-close>Cancel</button><button type="button" class="btn btn-primary" data-go>${icon('sparkles', 15)} ${st.done.length ? 'Regenerate selected parts' : 'Generate selected parts'}</button>`
   });
   const line = () => AIRoute.fillLine(m.querySelector('[data-route-line]'), course.id, 'courseContent', { canChange: true, onChange: line });
   line();
   m.querySelector('[data-go]').onclick = async () => {
     const f = m.querySelector('[data-f]'), parts = CCL.PARTS.filter(p => f.querySelector(`input[value="${p}"]`).checked), ins = f.ins.value.trim();
     if (!parts.length) return toast('Choose at least one part.', 'error');
-    const edited = parts.filter(p => st.editedParts.includes(p)), replaces = parts.filter(p => st.done.includes(p));
-    if (edited.length && !(await confirmDialog(`The ${edited.map(p => CCL.PART_LABEL[p].toLowerCase()).join(' and ')} part${edited.length === 1 ? ' was' : 's were'} edited by a person${s.content?.meta?.edited?.at ? ` (${fmtDateTime(s.content.meta.edited.at)})` : ''}. Regenerating replaces those edits.${st.approved ? ' The content is approved; the new content needs a new review and approval before learners see it.' : ''} Continue?`, { title: 'Replace edited content', confirmText: 'Replace edits', danger: true }))) return;
-    if (!edited.length && replaces.length && st.approved && !(await confirmDialog('This content is approved. New content needs a new review and approval before learners see it. Continue?', { title: 'Regenerate approved content', confirmText: 'Regenerate' }))) return;
-    m.close(); start([{ sessionId: s.id, parts, instructions: ins, repairParts: replaces, fill: parts.filter(p => !st.done.includes(p)) }]);
+    const replaces = parts.filter(p => st.done.includes(p));
+    if (await start([{ sessionId: s.id, parts, instructions: ins, repairParts: replaces, fill: parts.filter(p => !st.done.includes(p)) }]) !== false) m.close();
   };
 }
 

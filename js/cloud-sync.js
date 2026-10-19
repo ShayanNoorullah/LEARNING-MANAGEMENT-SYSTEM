@@ -18,7 +18,9 @@
   const SR = window.SyncRecover;
   const table = c.table || 'sdc_app_state', id = c.stateId || 'sdc-learn-main', PENDING = 'sdcCloudPending', STAMP = 'sdcCloudUpdatedAt', TOKEN = 'sdcCloudToken';
   const OWNER = 'sdcCloudOwner', AUTHLOST = 'sdcCloudAuthLost', RESCUE = 'sdcRescue:', RECOVERED = 'sdcRecovered';
-  const STORAGE_LIMIT = 5000000; // characters; browsers allow about 5 million per site (an estimate, not a promise)
+  // Characters. Browsers allow about 5 million per site, but the whole state also travels in one request
+  // and Vercel rejects requests over 4.5 MB, so the lower server-safe limit from js/core.js (STATE_MAX) applies.
+  const STORAGE_LIMIT = typeof STATE_MAX === 'number' ? STATE_MAX : 4300000;
   const useful = s => s && typeof s === 'object' && Array.isArray(s.users) && s.users.length > 0 && Array.isArray(s.courses);
   const withTimeout = (p, ms = 8000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('Cloud timeout')), ms))]);
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };

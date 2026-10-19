@@ -110,6 +110,10 @@ const check = (c, m) => { if (!c) throw new Error(m); };
     await q.goto(base + '/app.html#/dashboard', { waitUntil: 'networkidle0' }); await W(1500); q.__supabaseWrites = 0;
     await q.evaluate(() => { updateRecord('courses', 'C-EXCEL', { title: 'A' }); updateRecord('courses', 'C-EXCEL', { title: 'B' }); updateRecord('courses', 'C-EXCEL', { title: 'C' }); }); await W(150);
     await q.evaluate(() => updateRecord('courses', 'C-EXCEL', { description: 'later edit' })); await W(1500);
+    // A local server never talks to the live Supabase (backend/dev-safety.js), so there is nothing to count here;
+    // the debounce itself is covered by tests/cloudsync.test.js.
+    const status = await q.evaluate(() => window.SDC_CLOUD_STATUS || '');
+    if (!q.__supabaseWrites && /local|off/i.test(status)) return `Cloud sync is off on a local server ("${status}"); debounced, serialised saves are checked in tests/cloudsync.test.js.`;
     check(q.__supabaseWrites >= 1 && q.__supabaseWrites <= 2, `${q.__supabaseWrites} cloud writes for 4 rapid saves`);
     return `4 rapid saves produced ${q.__supabaseWrites} cloud write(s) carrying the latest snapshot (400 ms debounce, serialised).`;
   });

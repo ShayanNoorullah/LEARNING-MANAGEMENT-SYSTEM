@@ -171,7 +171,8 @@ function renderQuizAttempt(ctx, course, quiz) {
     });
     const aiReviews = {};
     for (const q of questions.filter(x => x.type === 'short')) {
-      if (!feature('ai') || !Domain.aiEnabled()) continue;
+      // answerHidden: the server keeps the model answer from learners, so the instructor reviews this answer.
+      if (!feature('ai') || !Domain.aiEnabled() || q.answerHidden) continue;
       try {
         const out = await SDCAI.call('quizCheck', {
           system: 'Score a short answer. Return JSON {"points":number,"max":number,"rationale":"..."}. points between 0 and max.',
@@ -187,7 +188,9 @@ function renderQuizAttempt(ctx, course, quiz) {
       submittedAt: new Date().toISOString(), answers, score: graded.score, maxScore: graded.maxScore,
       percent: graded.percent, detail: graded.detail, aiReviews, status: 'Submitted', pendingShort: graded.pending
     });
-    toast(graded.pending ? `Submitted · ${graded.percent}% (short answers may be reviewed)` : `Submitted · ${graded.percent}%`);
+    // Without the answer key the server scores the attempt; the score shows once the save comes back.
+    if (questions.some(q => q.answerHidden)) toast('Submitted. Your score appears in a moment.');
+    else toast(graded.pending ? `Submitted · ${graded.percent}% (short answers may be reviewed)` : `Submitted · ${graded.percent}%`);
     location.hash = `#/course/${course.id}/quizzes`;
   };
 }

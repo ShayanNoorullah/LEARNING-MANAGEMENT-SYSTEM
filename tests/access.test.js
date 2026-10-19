@@ -209,4 +209,152 @@ const nothingFor = (r, why) => assert.deepEqual(r.state, (() => { const s = stat
   r = save('A', s => { s.users.push({ id: 'NEWA', role: 'admin', email: 'na@x', passwordHash: 'p', salt: 's' }); rec(s, 'roles', 'rm').permissions.fees = ['view']; s.settings.auth.googleSignUpRole = 'teacher'; });
   assert.deepEqual(r.rej, [], 'the built-in admin is not limited');
 }
+
+// ---- P0: what a learner receives (no unauthorized drafts, no answer keys) and questions are guarded ----
+{
+  const s0 = () => {
+    const s = state();
+    Object.assign(rec(s, 'courses', 'C3'), { title: 'Secret draft' });
+    rec(s, 'courses', 'C1').aiContent = { proposals: [{ text: 'staff only' }] };
+    s.sessions.push({ id: 'S3', courseId: 'C3', title: 'Draft lesson', content: { lesson: [{ heading: 'Secret' }], meta: { approved: true } } });
+    rec(s, 'sessions', 'S1').content = { lesson: [{ heading: 'Intro' }], quiz: [{ question: 'q', options: ['x', 'y'], answer: 1 }], teacherNotes: ['staff'], meta: { approved: true, parts: { lesson: { at: 't' } }, history: [{ id: 'h' }] } };
+    rec(s, 'sessions', 'S1b').content = { lesson: [{ heading: 'Not approved yet' }], meta: {} };
+    rec(s, 'sessions', 'S2').content = { lesson: [{ heading: 'C2 lesson' }], meta: { approved: true, parts: { lesson: { at: 't' } } } };
+    s.questions.forEach(q => { q.courseId = 'C1'; });
+    Object.assign(rec(s, 'questions', 'Q2'), { modelAnswer: 'secret answer', keywords: ['secret'] });
+    s.questions.push({ id: 'Q3', courseId: 'C3', type: 'mcq_single', stem: 'Draft question', options: [{ id: 'a', correct: true }] });
+    s.quizzes.push({ id: 'QZ3', courseId: 'C3', batchId: '', status: 'draft', questionIds: ['Q3'] });
+    // C1 also has a draft quiz of the learner's batch and a published quiz of another batch.
+    s.batches.push({ id: 'B1x', courseId: 'C1', instructorId: 'T' });
+    s.questions.push({ id: 'QD', courseId: 'C1', type: 'short', stem: 'Draft quiz question' }, { id: 'QB', courseId: 'C1', type: 'short', stem: 'Other batch question' });
+    s.quizzes.push({ id: 'QZD', courseId: 'C1', batchId: 'B1', status: 'draft', questionIds: ['QD'] }, { id: 'QZB', courseId: 'C1', batchId: 'B1x', status: 'published', questionIds: ['QB'] });
+    s.assignments.push({ id: 'ASB', courseId: 'C1', batchId: 'B1x', status: 'Published', maxMarks: 10, dueAt: FUTURE });
+    s.feedback.push({ id: 'FL', learnerId: 'L', courseId: 'C1', rating: 5 });
+    s.certificates.push({ id: 'CTL', code: 'CERT-2026-0002', learnerId: 'L', courseId: 'C1', status: 'Valid', issuedBy: 'A', issuedAt: '2026-01-02' });
+    return s;
+  };
+  const me = (s, id) => s.users.find(u => u.id === id), ids = (s, k) => s[k].map(x => x.id).join(',');
+  const OWN = ['enrollments', 'submissions', 'quizAttempts', 'progress', 'attendance', 'results', 'feedback', 'certificates', 'fees'];
+  const PART = ['courses', 'sessions', 'quizzes', 'questions', 'quizAttempts'], WORK = [...PART, 'assignments', ...OWN.filter(k => k !== 'quizAttempts')];
+  let s = s0(), v = T.toClient(s, me(s, 'L'));
+  assert.deepEqual(WORK.map(k => ids(v, k)), ['C1,C2', 'S1,S1b', 'QZ1', 'Q1,Q2', '', 'AS1,AS3,ASC,ASL', 'E1', 'SB1', 'PR1', 'AT1', '', 'FL', 'CTL', 'FE1'],
+    'L (enrolled in C1, batch B1): the published C2 stays in the catalogue, but no C2 or draft C3 sessions, assignments, quizzes or questions, no draft or other-batch quiz or assignment, no unpublished result, and no one else\'s records');
+  assert.ok(!/correct|secret|staff|Not approved|history|C2 lesson|Draft|Other batch/.test(JSON.stringify(PART.map(k => v[k]))), 'no answer keys, model answers, staff notes, unapproved content, AI working data or unavailable quizzes');
+  assert.ok(OWN.every(k => v[k].every(x => x.learnerId === 'L')), 'no other learner\'s enrollments, submissions, attempts, progress, attendance, results, feedback, certificates or fees');
+  assert.ok(v.assignments.every(a => a.batchId === 'B1' && a.status !== 'Draft'), 'only published assignments of their own batch');
+  { const p = s0(); rec(p, 'results', 'R1').published = true;
+    assert.equal(ids(T.toClient(p, me(p, 'L')), 'results'), 'R1', 'their result once it is published'); }
+  { const b = s0(); rec(b, 'enrollments', 'E1').batchId = 'B1x'; const vb = T.toClient(b, me(b, 'L'));
+    assert.deepEqual([ids(vb, 'quizzes'), ids(vb, 'questions'), ids(vb, 'assignments')], ['QZB', 'QB', 'ASB'], 'moved to batch B1x: that batch\'s published quiz and assignments instead'); }
+  assert.deepEqual(Object.keys(rec(v, 'sessions', 'S1').content).sort(), ['lesson', 'meta'], 'approved content of a published course: the learner part only');
+  assert.deepEqual(rec(v, 'sessions', 'S1').content.meta, { parts: { lesson: {} }, approved: true }, 'meta says only which parts are written');
+  assert.ok(v.questions.every(q => q.answerHidden), 'questions are marked so the quiz page lets the server score');
+  for (const who of ['A', 'T', 'ACC']) assert.deepEqual(T.toClient(s, me(s, who)), T.forClient(s, who), who + ': staff still receive the whole state');
+  // LX (enrolled in C2) gets C2's lesson and the C1 question its quiz uses, but nothing else of C1.
+  const vx = T.toClient(s, me(s, 'LX'));
+  assert.deepEqual(WORK.map(k => ids(vx, k)), ['C1,C2', 'S2', 'QZ2', 'Q1', '', 'AS2', 'EX', 'SBX', '', 'AT2', 'R2', 'F2', '', ''], 'LX: only their own course and records');
+  assert.equal(rec(vx, 'sessions', 'S2').content.lesson[0].heading, 'C2 lesson');
+  // Withdrawn: the course stays in the catalogue, its lessons and assessments are no longer sent.
+  { const w = s0(); rec(w, 'enrollments', 'E1').status = 'Withdrawn'; const vw = T.toClient(w, me(w, 'L'));
+    assert.deepEqual(WORK.map(k => ids(vw, k)), ['C1,C2', '', '', '', '', '', 'E1', 'SB1', 'PR1', 'AT1', '', 'FL', 'CTL', 'FE1'], 'withdrawn learner: no sessions, quizzes, questions or assignments; only their own records');
+    const had = Object.fromEntries(T.PROTECTED.map(k => [k, (vw[k] || []).map(x => x.id)]));
+    const r = T.applySave(w, clone(vw), me(w, 'L'), T.readKnown({ known: had, fresh: had }));
+    assert.deepEqual([r.rejected, WORK.map(k => r.state[k])], [[], WORK.map(k => w[k])], 'their save deletes none of the hidden records'); }
+  // A lesson written by a person (no AI parts) and approved stays visible; staff AI data does not travel.
+  { const m = s0();
+    rec(m, 'sessions', 'S1b').content = { lesson: [{ heading: 'Hand written' }], practice: [{ task: 'Do it' }],
+      meta: { approved: true, edited: { by: 'T', at: 't', parts: ['lesson'] }, parts: { practice: { at: 't', provider: 'groq', model: 'mx-model', tokens: 77, instructions: 'STAFF PROMPT' } }, errors: { assess: 'boom' }, history: [{ id: 'h' }] } };
+    const sb = rec(T.toClient(m, me(m, 'L')), 'sessions', 'S1b'), CCL = require('../js/coursecontent-logic.js'), st = CCL.sessionState(sb);
+    assert.deepEqual([st.status, st.done, st.approved, sb.content.lesson[0].heading], ['partial', ['lesson', 'practice'], true, 'Hand written'], 'an approved manual edit is shown to the learner');
+    assert.ok(!/STAFF PROMPT|groq|mx-model|tokens|boom|edited|history|"at"/.test(JSON.stringify(sb)), 'no staff instructions, provider, model, tokens, errors or history'); }
+
+  // The learner's own saves: the hidden records are not deleted and nothing is reported as refused.
+  const base = c => T.readKnown({ known: Object.fromEntries(T.PROTECTED.map(k => [k, (c[k] || []).map(r => r.id)])), fresh: Object.fromEntries(T.PROTECTED.map(k => [k, (c[k] || []).map(r => r.id)])) });
+  let r = T.applySave(s, clone(v), me(s, 'L'), base(v));
+  assert.deepEqual([r.rejected, WORK.map(k => r.state[k])], [[], WORK.map(k => s0()[k])], 'saving the filtered copy changes and deletes nothing');
+  for (const known of [base(v), null]) {
+    const n = clone(v);
+    n.questions.push({ id: 'QA-UNAUTHORIZED', courseId: 'C1', type: 'mcq_single', stem: 'x', options: [{ id: 'a', correct: true }] });
+    n.questions[0].options[1].correct = true; n.questions = n.questions.filter(q => q.id !== 'Q2');
+    r = T.applySave(s, n, me(s, 'L'), known);
+    assert.deepEqual(r.rejected.filter(x => x.collection === 'questions').map(x => `${x.id}:${x.op}`).sort(), ['Q1:edit', 'QA-UNAUTHORIZED:create'], 'a learner cannot add or change questions');
+    assert.deepEqual(r.state.questions, s0().questions, 'the stored questions are unchanged (a removed one is kept)');
+  }
+  // A quiz taken without the answer key is scored by the server from the stored key.
+  const n = clone(v);
+  n.quizAttempts.push({ id: 'QAL', quizId: 'QZ1', courseId: 'C1', learnerId: 'L', answers: { Q1: 'a', Q2: 'text' }, aiReviews: {}, score: 0, maxScore: 3, percent: 0, status: 'Submitted' });
+  r = T.applySave(s, n, me(s, 'L'), base(v));
+  assert.deepEqual([r.rejected, (({ score, percent, pendingShort }) => ({ score, percent, pendingShort }))(r.state.quizAttempts.find(a => a.id === 'QAL'))], [[], { score: 1, percent: 33, pendingShort: true }]);
+
+  // Staff question writes keep working, within their course access.
+  r = save('T', x => { x.questions.push({ id: 'Q4', courseId: 'C1', type: 'short', stem: 'new' }); rec(x, 'questions', 'Q1').stem = 'edited'; x.questions = x.questions.filter(q => q.id !== 'Q2'); }, { prev: s0() });
+  assert.deepEqual([r.rej, r.ids('questions'), r.find('questions', 'Q1').stem], [[], 'Q1,Q3,QD,QB,Q4', 'edited'], 'instructor: questions of a course they teach');
+  r = save('T', x => { x.questions.push({ id: 'Q5', courseId: 'C2', type: 'short', stem: 'x' }); rec(x, 'questions', 'Q3').stem = 'x'; }, { prev: s0() });
+  assert.deepEqual(r.rej, ['questions:Q3:edit', 'questions:Q5:create'], 'instructor: not another course\'s questions');
+  r = save('A', x => { x.questions.push({ id: 'Q6', courseId: 'C3', type: 'short', stem: 'x' }); rec(x, 'questions', 'Q3').stem = 'x'; }, { prev: s0() });
+  assert.deepEqual([r.rej, r.ids('questions')], [[], 'Q1,Q2,Q3,QD,QB,Q6'], 'the coordinator is not limited');
+}
+
+// ---- The other shared collections: accounts, messages, notifications, announcements, question banks,
+// practice attempts, rubrics and at-risk flags ----
+{
+  const s1 = () => {
+    const s = state();
+    Object.assign(s.users.find(u => u.id === 'T'), { phone: '0300-T', designation: 'Instructor' });
+    s.messages = [{ id: 'M1', from: 'L', to: 'T', subject: 'hi' }, { id: 'M2', from: 'T', to: 'L', subject: 're', read: false }, { id: 'M3', from: 'L2', to: 'T', subject: 'L2 private' }];
+    s.notifications = [{ id: 'N1', userId: 'L', title: 'yours', read: false }, { id: 'N2', userId: 'L2', title: 'L2 grade' }, { id: 'N3', userId: 'T', title: 'staff note' }];
+    s.announcements = [{ id: 'AN1', audience: 'everyone', authorId: 'A' }, { id: 'AN2', audience: 'learners', authorId: 'A' }, { id: 'AN3', audience: 'instructors', authorId: 'A', message: 'staff only' },
+      { id: 'AN4', audience: 'course', courseId: 'C1', authorId: 'T' }, { id: 'AN5', audience: 'course', courseId: 'C2', authorId: 'T2' }, { id: 'AN6', audience: 'everyone', status: 'Draft', authorId: 'A' },
+      { id: 'AN7', audience: 'everyone', expiry: '2020-01-01', authorId: 'A' }];
+    s.questionBanks = [{ id: 'QB1', courseId: 'C1', title: 'bank' }];
+    s.practiceAttempts = [{ id: 'PA1', learnerId: 'L', courseId: 'C1', percent: 50 }, { id: 'PA2', learnerId: 'L2', courseId: 'C1', percent: 10 }];
+    s.rubrics = [{ id: 'RB1', assignmentId: 'AS1', criteria: [{ c: 'marking guide' }] }];
+    s.atRiskFlags = [{ id: 'AR1', learnerId: 'L', courseId: 'C1', level: 'High', outreachNotes: [{ text: 'called' }] }];
+    return s;
+  };
+  const S = ['users', 'messages', 'notifications', 'announcements', 'questionBanks', 'practiceAttempts', 'rubrics', 'atRiskFlags'];
+  const me = (s, id) => s.users.find(u => u.id === id), idsOf = v => S.map(k => v[k].map(x => x.id).join(','));
+  const s = s1(), v = T.toClient(s, me(s, 'L'));
+  assert.deepEqual(idsOf(v), ['A,T,L,ACC,EN,CE,RM,SE', 'M1,M2', 'N1', 'AN1,AN2,AN4', '', 'PA1', '', ''],
+    'L: staff-console accounts and their instructor, their own messages, notifications and practice, announcements for everyone, learners or their course; no banks, rubrics or flags');
+  assert.ok(v.users.filter(u => u.id !== 'L').every(u => Object.keys(u).every(k => ['id', 'name', 'role', 'status', 'designation', 'avatarUrl'].includes(k))), 'others: name and picture only');
+  assert.deepEqual([me(v, 'L').email, me(v, 'L').passwordHash, me(v, 'T').designation], ['l@x', 'hL', 'Instructor'], 'their own account in full');
+  assert.ok(!/L2 private|L2 grade|staff note|staff only|marking guide|called|0300-T|t2@x|l2@x/.test(JSON.stringify(S.map(k => v[k]))), 'nothing of another learner, no staff records, no contact details');
+  const vx = T.toClient(s, me(s, 'LX'));
+  assert.deepEqual(idsOf(vx).slice(0, 4), ['A,T2,LX,ACC,EN,CE,RM,SE', '', '', 'AN1,AN2,AN5'], 'LX: their own instructor and course announcement');
+  for (const who of ['A', 'T']) assert.deepEqual(T.toClient(s, me(s, who)), T.forClient(s, who), who + ': staff still receive everything');
+
+  const L = me(s, 'L'), learnerSave = edit => { const n = clone(v); edit(n); const r = T.applySave(s, n, L, allKnown(v)); return { r, rej: r.rejected.map(x => `${x.collection}:${x.id}:${x.op}`).sort() }; };
+  // The filtered copy, and the full copy an app version from before this change holds: nothing changes, nothing is reported.
+  let { r } = learnerSave(() => {});
+  assert.deepEqual([r.rejected, S.map(k => r.state[k])], [[], S.map(k => s1()[k])], 'saving the filtered copy deletes nothing hidden');
+  r = T.applySave(s, clone(T.forClient(s, 'L')), L, allKnown(s));
+  assert.deepEqual([r.rejected, S.map(k => r.state[k])], [[], S.map(k => s1()[k])], 'an older full copy changes nothing either');
+  // What the learner's screens do: read a message and a notification, clear one, message and notify their instructor, practise, edit their profile.
+  ({ r } = learnerSave(n => {
+    me(n, 'L').name = 'L renamed'; Object.assign(n.messages.find(m => m.id === 'M2'), { read: true, updatedAt: 'now' });
+    n.messages.push({ id: 'M4', from: 'L', to: 'T', subject: 'question' }); n.notifications.push({ id: 'N4', userId: 'T', title: 'New submission' }, { id: 'N5', userId: 'L', title: 'Submission received' });
+    n.notifications = n.notifications.filter(x => x.id !== 'N1'); n.practiceAttempts.push({ id: 'PA3', learnerId: 'L', courseId: 'C1', percent: 80 });
+  }));
+  assert.deepEqual(r.rejected, []);
+  assert.deepEqual(idsOf(r.state).slice(1, 6), ['M1,M2,M3,M4', 'N2,N3,N4,N5', 'AN1,AN2,AN3,AN4,AN5,AN6,AN7', 'QB1', 'PA1,PA2,PA3'], 'their changes saved, every hidden record kept');
+  assert.deepEqual([me(r.state, 'L').name, r.state.messages[1].read], ['L renamed', true]);
+  // Crafted writes: hidden records, someone else's name on a message or attempt, staff collections, announcements without permission.
+  const x = learnerSave(n => {
+    n.messages.push({ id: 'M3', from: 'L2', to: 'T', subject: 'forged' }, { id: 'M5', from: 'L2', to: 'T', subject: 'as L2' }, { id: 'M6', from: 'L', to: 'L2', subject: 'to a hidden learner' });
+    n.messages.find(m => m.id === 'M1').subject = 'rewritten';
+    n.notifications.push({ id: 'N2', userId: 'L2', title: 'forged' }, { id: 'N6', userId: 'L2', title: 'spam' });
+    n.announcements.push({ id: 'AN8', audience: 'everyone', authorId: 'L' }); n.announcements.find(a => a.id === 'AN1').title = 'x'; n.announcements = n.announcements.filter(a => a.id !== 'AN4');
+    n.questionBanks.push({ id: 'QB2' }); n.rubrics.push({ id: 'RB1', criteria: [] }); n.atRiskFlags.push({ id: 'AR1', level: 'Low' });
+    n.practiceAttempts.push({ id: 'PA4', learnerId: 'L2', percent: 100 }); n.practiceAttempts[0].percent = 100;
+    me(n, 'T').name = 'renamed';
+  });
+  assert.deepEqual(x.rej, ['announcements:AN1:edit', 'announcements:AN4:delete', 'announcements:AN8:create', 'atRiskFlags:AR1:edit', 'messages:M1:edit', 'messages:M3:edit', 'messages:M5:create', 'messages:M6:create',
+    'notifications:N2:edit', 'notifications:N6:create', 'practiceAttempts:PA1:edit', 'practiceAttempts:PA4:create', 'questionBanks:QB2:create', 'rubrics:RB1:edit', 'users:T:edit']);
+  assert.deepEqual(S.map(k => x.r.state[k]), S.map(k => s1()[k]), 'every refused write is undone');
+  // A learner role with announcement permission keeps it.
+  { const p = s1(); p.roles = p.roles.map(r => r.id === 'student' ? { ...r, permissions: { ...r.permissions, announcements: ['view', 'create'] } } : r);
+    const n = clone(T.toClient(p, me(p, 'L'))); n.announcements.push({ id: 'AN9', audience: 'course', courseId: 'C1', authorId: 'L' });
+    assert.deepEqual(T.applySave(p, n, me(p, 'L'), allKnown(n)).rejected, []); }
+}
 console.log('access.test.js: all checks passed');

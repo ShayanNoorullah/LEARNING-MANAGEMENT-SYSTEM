@@ -1,0 +1,115 @@
+{
+  "completed": false,
+  "mode": [
+    "--focused"
+  ],
+  "databaseRemoved": true,
+  "results": [
+    {
+      "name": "server key masking",
+      "status": "Pass",
+      "evidence": "four dummy profiles configured; no raw dummy key in browser status"
+    },
+    {
+      "name": "authorization",
+      "status": "Pass",
+      "evidence": "learner refused all three builder capabilities; unauthenticated local-token mint refused"
+    },
+    {
+      "name": "focused outline/draft",
+      "status": "Pass",
+      "evidence": "2 sessions, edited outline survives reload, atomic draft persisted; no fee/enrollments"
+    },
+    {
+      "name": "Azure full generation",
+      "status": "Pass",
+      "evidence": "2 sessions, all 6 parts through real Azure adapter with native-format mock"
+    },
+    {
+      "name": "Course Check saved evidence",
+      "status": "Pass",
+      "evidence": "savefig only in saved example reached both identical mock review prompts; no session mutation; review current after PostgreSQL reload"
+    },
+    {
+      "name": "Course Check addition",
+      "status": "Pass",
+      "evidence": "Add to content marks outdated and saves instructions, 0 AI requests; edited lesson unchecked; cancel 0 requests"
+    },
+    {
+      "name": "expired login recovery",
+      "status": "Pass",
+      "evidence": "real gateway 401 preserved pending edit across reload; same-account sign-in replay reached PostgreSQL"
+    },
+    {
+      "name": "network write retry",
+      "status": "Pass",
+      "evidence": "aborted PUT not reported saved; pending retained; retry persisted exact edit"
+    },
+    {
+      "name": "storage-full recovery",
+      "status": "Pass",
+      "evidence": "real persist path threw QuotaExceededError, status storage; in-memory edit saved to PostgreSQL after capacity restored"
+    },
+    {
+      "name": "learner raw-state isolation",
+      "status": "Fail",
+      "evidence": "Unenrolled learner received synthetic draft course and quiz answer keys from gateway state; UI hiding is not read authorization."
+    }
+  ],
+  "calls": [
+    {
+      "provider": "azure_openai",
+      "kind": "outline",
+      "n": 0,
+      "fail": false
+    },
+    {
+      "provider": "azure_openai",
+      "kind": "lesson",
+      "n": 2,
+      "fail": false
+    },
+    {
+      "provider": "azure_openai",
+      "kind": "lesson",
+      "n": 1,
+      "fail": false
+    },
+    {
+      "provider": "azure_openai",
+      "kind": "practice",
+      "n": 2,
+      "fail": false
+    },
+    {
+      "provider": "azure_openai",
+      "kind": "practice",
+      "n": 1,
+      "fail": false
+    },
+    {
+      "provider": "azure_openai",
+      "kind": "assess",
+      "n": 2,
+      "fail": false
+    },
+    {
+      "provider": "azure_openai",
+      "kind": "assess",
+      "n": 1,
+      "fail": false
+    },
+    {
+      "provider": "azure_openai",
+      "kind": "review",
+      "n": 0,
+      "fail": false
+    },
+    {
+      "provider": "azure_openai",
+      "kind": "review",
+      "n": 0,
+      "fail": false
+    }
+  ]
+}

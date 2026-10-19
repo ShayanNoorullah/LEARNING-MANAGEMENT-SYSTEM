@@ -34,7 +34,9 @@ function demoState() {
   if (!pg.available()) throw new Error('psql was not found. Install PostgreSQL or set PG_BIN to its bin folder.');
   if (!pg.up()) throw new Error(`No local PostgreSQL on 127.0.0.1:${pg.CONN.port}. Run: node scripts/localdb/cli.js init`);
   const made = [];
-  const fresh = async name => { await pg.createDb(name, { drop: true }); made.push(name); await pg.apply(name, ['supabase/local/roles.sql']); return name; };
+  // Never reset a pre-existing test database. Only databases created by this invocation are removed.
+  const suffix = '_' + crypto.randomBytes(6).toString('hex');
+  const fresh = async name => { name += suffix; await pg.createDb(name); made.push(name); await pg.apply(name, ['supabase/local/roles.sql']); return name; };
   try {
     // ---- 1. fresh database -------------------------------------------------------------------
     const F = await fresh('sdc_test_fresh');

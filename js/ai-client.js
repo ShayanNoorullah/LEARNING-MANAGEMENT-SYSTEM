@@ -63,6 +63,10 @@
     test: body => api('/test', body),
     // Groq's model list for a saved or pasted key: { models: [{ id, contextWindow, maxOutput, ownedBy }] }
     models: body => api('/models', body, 'POST', 15000),
+    // YouTube key for the Course Builder's videos: { apiKey } saves, { test: true } tests, { remove: true } removes.
+    youtube: body => api('/youtube', body, 'POST', 20000),
+    // { feature: 'courseGenerate' | 'courseContent', queries: [phrase] } -> { results: [[{ id, title, channel, duration }] | null] }
+    videos: body => api('/videos', body, 'POST', 60000),
     // json: ask the provider for JSON mode. timeoutMs: give up waiting after that long. capability: use
     // another feature's provider settings (usage is still counted under `feature`). All are optional;
     // without them the request is exactly what it always was.

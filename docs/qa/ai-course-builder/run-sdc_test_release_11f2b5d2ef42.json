@@ -1,0 +1,43 @@
+{
+  "completed": true,
+  "mode": [
+    "--tabs-only"
+  ],
+  "databaseRemoved": true,
+  "results": [
+    {
+      "name": "server key masking",
+      "status": "Pass",
+      "evidence": "four dummy profiles configured; no raw dummy key in browser status"
+    },
+    {
+      "name": "authorization",
+      "status": "Pass",
+      "evidence": "learner refused all three builder capabilities; unauthenticated local-token mint refused"
+    },
+    {
+      "name": "tabs outline/draft",
+      "status": "Pass",
+      "evidence": "2 sessions, edited outline survives reload, atomic draft persisted; no fee/enrollments"
+    },
+    {
+      "name": "multi-tab run exclusion",
+      "status": "Pass",
+      "evidence": "1 mocked request(s) for the same missing part"
+    }
+  ],
+  "calls": [
+    {
+      "provider": "azure_openai",
+      "kind": "outline",
+      "n": 0,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 1,
+      "fail": false
+    }
+  ]
+}

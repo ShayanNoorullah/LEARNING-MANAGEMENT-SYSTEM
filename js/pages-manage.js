@@ -330,6 +330,7 @@ function sessionModal(course, rec, done) {
     const bad = [...form.querySelectorAll('input[type=url][name]')].find(i => i.value && !i.checkValidity());
     if (bad) { bad.focus(); return toast('Please enter a valid URL including https://', 'error'); }
     const data = { ...r, courseId: course.id, resources, zoom: { registerUrl: r.zoomRegisterUrl, meetingId: r.zoomMeetingId, password: r.zoomPassword } };
+    if (rec && (rec.videoTitle || rec.videoChannel) && String(r.videoUrl || '') !== String(rec.videoUrl || '')) Object.assign(data, { videoTitle: '', videoChannel: '' }); // a found video's title no longer matches a changed link
     ['zoomRegisterUrl', 'zoomMeetingId', 'zoomPassword'].forEach(k => delete data[k]);
     if (rec) updateRecord('sessions', rec.id, data);
     else {

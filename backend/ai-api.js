@@ -500,6 +500,56 @@ function pickRoute(body) {
   return { provider, profileId, model: body.model, temperature: body.temperature, maxTokens, json: body.json === true, ...(schema ? { schema } : {}) };
 }
 
+/* ------------------------------ YouTube videos ---------------------------- */
+// The Course Builder attaches a real YouTube video to each session: YouTube Data API v3 search (embeddable,
+// public, safe search, 2 min to 3 h, not live), then the person reviews each pick. The key is the server's
+// (YOUTUBE_API_KEY, or saved in Settings → Integrations → YouTube, encrypted like the AI keys).
+// Quota: a search costs 100 of the default 10,000 daily units, so results are cached per phrase for 12 hours.
+const YT_BASE = 'https://www.googleapis.com/youtube/v3';
+// QA only, as SDC_QA_GROQ_BASE_URL: a stand-in on this machine, ignored on Vercel and in production.
+function ytBase() {
+  const qa = String(process.env.SDC_QA_YOUTUBE_BASE_URL || '');
+  return qa && !process.env.VERCEL && process.env.NODE_ENV !== 'production' && /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(qa.replace(/\/?$/, '/')) ? qa.replace(/\/$/, '') : YT_BASE;
+}
+async function ytKey(store) {
+  if (process.env.YOUTUBE_API_KEY) return process.env.YOUTUBE_API_KEY;
+  return (store || await loadSecrets()).youtube?.apiKey || '';
+}
+const ytCache = new Map(), YT_TTL = 12 * 3600 * 1000;
+const ytSecs = d => { const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(String(d || '')); return m ? (+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0) : 0; };
+const ytText = v => String(v || '').replace(/&(amp|quot|#39|#x27|lt|gt);/g, (_, e) => ({ amp: '&', quot: '"', '#39': "'", '#x27': "'", lt: '<', gt: '>' })[e]).slice(0, 200);
+async function ytGet(pathname, params, key, timeoutMs) {
+  const u = new URL(ytBase() + pathname);
+  Object.entries({ ...params, key }).forEach(([k, v]) => u.searchParams.set(k, v));
+  const r = await fetch(u.toString(), { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(Math.max(1000, timeoutMs)) });
+  const j = await r.json().catch(() => ({}));
+  if (r.ok) return j;
+  const reason = String(j.error?.errors?.[0]?.reason || j.error?.status || ''), msg = redact(String(j.error?.message || `HTTP ${r.status}`), key).slice(0, 200);
+  if (/quota|dailyLimit|rateLimit/i.test(reason)) throw Object.assign(fail(429, 'provider_quota', 'The YouTube search quota for today is used up. Try again tomorrow, or add video links by hand.'), { provider: 'youtube' });
+  if (/keyInvalid|keyExpired|API_KEY|accessNotConfigured|ipRefererBlocked|forbidden|PERMISSION_DENIED/i.test(reason) || (r.status === 400 && /api key/i.test(msg)))
+    throw Object.assign(fail(400, 'provider_auth', `YouTube refused the API key (${msg}). An administrator can fix it in Settings → Integrations → YouTube; the key needs the YouTube Data API v3 enabled.`), { provider: 'youtube' });
+  throw Object.assign(fail(502, 'provider', `YouTube: ${msg}`), { provider: 'youtube' });
+}
+async function ytSearch(q, key, { fresh = false, timeoutMs = 10000 } = {}) {
+  const ck = q.toLowerCase(), hit = ytCache.get(ck);
+  if (!fresh && hit && Date.now() - hit.at < YT_TTL) return hit.list;
+  const s = await ytGet('/search', { part: 'snippet', type: 'video', q, maxResults: '8', videoEmbeddable: 'true', videoSyndicated: 'true', safeSearch: 'strict', relevanceLanguage: 'en' }, key, timeoutMs);
+  const ids = [...new Set((s.items || []).map(i => i?.id?.videoId).filter(id => /^[\w-]{11}$/.test(String(id))))];
+  let list = [];
+  if (ids.length) {
+    const v = await ytGet('/videos', { part: 'snippet,contentDetails,status', id: ids.join(',') }, key, timeoutMs);
+    const by = new Map((v.items || []).map(x => [x.id, x]));
+    list = ids.map(id => by.get(id)).filter(x => x && x.status?.embeddable !== false && x.status?.privacyStatus === 'public' && (x.snippet?.liveBroadcastContent || 'none') === 'none')
+      .map(x => ({ id: x.id, title: ytText(x.snippet?.title), channel: ytText(x.snippet?.channelTitle).slice(0, 100), duration: ytSecs(x.contentDetails?.duration) }))
+      .filter(x => x.duration >= 120 && x.duration <= 3 * 3600).slice(0, 5);
+  }
+  ytCache.set(ck, { at: Date.now(), list });
+  if (ytCache.size > 2000) ytCache.delete(ytCache.keys().next().value);
+  return list;
+}
+// Demo mode only (developer machines, no key): clearly labelled placeholders, not real videos.
+const ytMock = q => [0, 1, 2].map(i => ({ id: crypto.createHash('sha1').update(q + i).digest('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 11).padEnd(11, 'x'), title: `Demo video ${i + 1} for "${q.slice(0, 80)}"`, channel: 'Demo mode: not a real video', duration: 600 + i * 300 }));
+
 /* -------------------------------- routes --------------------------------- */
 router.get('/api/ai/status', wrap(async (req, res) => {
   const store = await loadSecrets();
@@ -515,7 +565,9 @@ router.get('/api/ai/status', wrap(async (req, res) => {
     azure_openai: !!process.env.AZURE_OPENAI_API_KEY,
     groq: !!process.env.GROQ_API_KEY
   };
-  res.json({ ok: true, product: 'SDC Learn AI', profiles, env, usage: await loadUsage(), localAuth: LOCAL_OPEN });
+  const yt = store.youtube || {};
+  const youtube = { configured: !!(process.env.YOUTUBE_API_KEY || yt.apiKey), env: !!process.env.YOUTUBE_API_KEY, maskedKey: maskKey(yt.apiKey), lastTest: yt.lastTest || null, demo: !process.env.YOUTUBE_API_KEY && !yt.apiKey && mockDemo() };
+  res.json({ ok: true, product: 'SDC Learn AI', profiles, env, youtube, usage: await loadUsage(), localAuth: LOCAL_OPEN });
 }));
 
 router.post('/api/ai/auth', wrap(async (req, res) => {
@@ -615,6 +667,68 @@ router.post('/api/ai/models', auth, allow('configure'), wrap(async (req, res) =>
     e.message = redact(e.message, profile.apiKey);
     throw e;
   }
+}));
+
+// YouTube key: save, test (a saved or pasted key) or remove. The key never comes back to the browser.
+router.post('/api/ai/youtube', auth, allow('configure'), wrap(async (req, res) => {
+  rateLimit(req.uid, 20);
+  const store = await loadSecrets(), b = req.body || {};
+  const pasted = typeof b.apiKey === 'string' && b.apiKey.trim() && !b.apiKey.includes('…') ? b.apiKey.trim() : '';
+  if (pasted && (pasted.length > 200 || !/^[\w.-]+$/.test(pasted))) return res.status(400).json({ error: 'That does not look like an API key.', code: 'bad_request' });
+  if (b.remove) { delete store.youtube; await saveSecrets(store); return res.json({ ok: true, removed: true }); }
+  if (b.test) {
+    const key = pasted || await ytKey(store);
+    if (!key) return res.status(400).json({ error: 'Save or paste a YouTube API key first.', code: 'not_configured' });
+    const t0 = Date.now();
+    try {
+      const list = await ytSearch('microsoft excel pivot tables tutorial', key, { fresh: true });
+      if (!pasted && store.youtube) { store.youtube.lastTest = { ok: true, at: new Date().toISOString(), ms: Date.now() - t0 }; await saveSecrets(store); }
+      await trackUsage(null, 0, { provider: 'youtube', ok: true, ms: Date.now() - t0 });
+      return res.json({ ok: true, found: list.length, ms: Date.now() - t0 });
+    } catch (e) {
+      if (timedOut(e)) e = fail(504, 'timeout', 'YouTube did not answer within 10 seconds.');
+      if (!pasted && store.youtube) { store.youtube.lastTest = { ok: false, at: new Date().toISOString(), code: String(e.code || 'provider'), message: String(e.message).slice(0, 200) }; await saveSecrets(store).catch(() => {}); }
+      await trackUsage(null, 0, { provider: 'youtube', ok: false, code: e.code, status: e.status });
+      throw e;
+    }
+  }
+  if (!pasted) return res.status(400).json({ error: 'Paste the YouTube API key.', code: 'bad_request' });
+  store.youtube = { apiKey: pasted, savedAt: new Date().toISOString(), lastTest: null };
+  await saveSecrets(store);
+  res.json({ ok: true, maskedKey: maskKey(pasted) });
+}));
+
+// Videos for the Course Builder: one YouTube search per phrase (at most 48, one per session). Answers
+// results[i] = up to 5 videos for queries[i] (best first), or null when that one search failed.
+// Same switches and permissions as the AI course features; it does not count against the AI call budget.
+router.post('/api/ai/videos', auth, allow('use'), wrap(async (req, res) => {
+  const feature = req.body?.feature;
+  if (feature !== 'courseGenerate' && feature !== 'courseContent') return res.status(400).json({ error: 'Videos are found for the Course Builder only.', code: 'bad_request' });
+  const raw = req.body?.queries;
+  if (!Array.isArray(raw) || !raw.length || raw.length > CG.LIMITS.sessions) return res.status(400).json({ error: `Send 1 to ${CG.LIMITS.sessions} search phrases.`, code: 'bad_request' });
+  const queries = raw.map(q => (typeof q === 'string' ? q.replace(/\s+/g, ' ').trim().slice(0, CG.LIMITS.videoQuery) : ''));
+  if (queries.some(q => !q)) return res.status(400).json({ error: 'Every search phrase needs words.', code: 'bad_request' });
+  queries.forEach(() => rateLimit(req.uid, CONTENT_RATE, 'content'));
+  const key = await ytKey();
+  if (!key) {
+    if (mockDemo()) return res.json({ ok: true, source: 'demo', results: queries.map(ytMock), failed: 0 });
+    return res.status(400).json({ error: 'No YouTube API key is set, so videos cannot be found automatically. An administrator can add one in Settings → Integrations → YouTube. Video links can still be added by hand.', code: 'not_configured', provider: 'youtube' });
+  }
+  const started = Date.now(), uniq = [...new Set(queries.map(q => q.toLowerCase()))], found = new Map();
+  let next = 0, stop = null;
+  const worker = async () => { // each distinct phrase is searched once, four at a time
+    while (!stop && next < uniq.length) {
+      const q = uniq[next++], left = limits.deadlineMs - (Date.now() - started);
+      if (left < 3000) continue;
+      try { found.set(q, await ytSearch(q, key, { timeoutMs: Math.min(10000, left) })); }
+      catch (e) { if (e.code === 'provider_quota' || e.code === 'provider_auth') stop = e; }
+    }
+  };
+  await Promise.all([1, 2, 3, 4].map(worker));
+  const results = queries.map(q => found.get(q.toLowerCase()) || null);
+  await trackUsage(null, 0, { provider: 'youtube', ok: !stop, code: stop?.code, status: stop?.status, ms: Date.now() - started });
+  if (stop && !results.some(Boolean)) throw stop;
+  res.json({ ok: true, source: 'youtube', results, failed: results.filter(x => x === null).length, ...(stop ? { stopped: stop.message, code: stop.code } : {}) });
 }));
 
 router.post('/api/ai/complete', auth, allow('use'), wrap(async (req, res) => {

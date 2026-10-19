@@ -4,8 +4,8 @@
    Saves are conditional (sdc_state_put_if) and the 14 protected collections are checked per record.
    Passwords are checked here, other users' password hashes never leave the server, and only
    roles with the matching permission can change accounts, roles or settings (never above their own).
-   ponytail: any signed-in user still receives the whole state minus hashes; per-role filtering
-   needs per-collection tables. */
+   Learner accounts receive only what their screens show (readScope); staff receive the whole state
+   minus other people's hashes. */
 const express = require('express'), crypto = require('crypto'), jwt = require('jsonwebtoken'), fs = require('fs'), path = require('path'), vm = require('vm');
 
 const SECRET = process.env.SDC_STATE_SECRET || '';
@@ -112,9 +112,108 @@ async function commit(mutate, { safeOnly = false } = {}) {
 
 const roleOf = (s, u) => (s.roles || []).find(r => r.id === u?.role) || (s.roles || []).find(r => r.id === 'student');
 const can = (s, u, mod, acts = ['create', 'edit', 'delete']) => { const r = roleOf(s, u); return !!r && (r.id === 'admin' || acts.some(a => (r.permissions?.[mod] || []).includes(a))); };
+// Domain.visibleCourses in js/core.js for the staff course access (all, selected, assigned): course id -> covered.
+function staffScope(s, me) {
+  const role = roleOf(s, me), scope = role?.courseScope, mine = new Set(listOf(s, 'batches').filter(b => b?.instructorId === me.id).map(b => b.courseId));
+  return id => role?.id === 'admin' || scope === 'all' || (scope === 'selected' && (role.courseIds || []).includes(id)) || (scope === 'assigned' && mine.has(id));
+}
 const findByEmail = (s, email) => s.users.find(u => String(u.email).toLowerCase() === String(email || '').trim().toLowerCase());
 // Everyone's hash is removed except the signed-in user's own (needed for "change password").
 const forClient = (s, uid) => ({ ...s, users: s.users.map(u => u.id === uid ? u : (({ passwordHash, salt, ...rest }) => rest)(u)) });
+/* What a learner account (course access "enrolled", as in Domain.visibleCourses) receives; everyone else
+   gets the whole state. Course records (the catalogue) stay for published courses and the learner's own
+   active enrolments, without course AI working data (aiContent). Sessions and assignments are sent only
+   for courses the learner may open (courseAccess in js/pages-learn.js: enrolled, not withdrawn,
+   published); assignments (not drafts) and quizzes (published) only for the learner's own batch
+   (Domain.learnerAssignments, Domain.learnerQuizzes), and questions only when one of those quizzes uses
+   them; results only their own published ones; accounts only of the people their screens show, as name
+   and picture (PROFILE); messages and notifications only their own; announcements as
+   Domain.announcementsFor; no question banks, rubrics or at-risk flags. Also removed: other people's
+   enrollments, submissions, quiz attempts, practice attempts, progress, attendance, feedback,
+   certificates and fees; session teaching content except
+   the approved learner part (LEARNER_FIELDS, as tcSessionBlock in js/pages-coursecontent.js shows it,
+   with meta reduced to which parts are written); quiz answer keys (correct options, model answers,
+   keywords; the question is marked answerHidden). Saving stays safe: the hidden records are never in that
+   browser's base.known, so they are not deleted (unscope keeps them in the other collections), and
+   learners cannot change questions (guardCourseData). */
+const CCL = require('../js/coursecontent-logic.js');
+const learnerView = (s, u) => { const r = roleOf(s, u); return !!r && r.id !== 'admin' && (!r.courseScope || r.courseScope === 'enrolled'); };
+const hideKey = q => { const { modelAnswer, keywords, ...rest } = q; return { ...rest, options: Array.isArray(q.options) ? q.options.map(o => { const { correct, ...x } = o || {}; return x; }) : q.options, answerHidden: true }; };
+function learnerSession(s) {
+  const { content: c, ...rest } = s;
+  if (!c?.meta?.approved) return rest;
+  // Parts written by the AI (meta.parts) or by a person (meta.edited.parts); no prompts, models or history.
+  const parts = Object.fromEntries(CCL.sessionState(s).done.map(p => [p, {}]));
+  return { ...rest, content: { ...Object.fromEntries(CCL.LEARNER_FIELDS.filter(k => k in c).map(k => [k, c[k]])), meta: { parts, approved: true } } };
+}
+function readScope(s, me) {
+  if (!learnerView(s, me)) return s;
+  const own = r => !!r && r.learnerId === me.id, batchOf = new Map();
+  listOf(s, 'enrollments').forEach(e => { if (own(e) && e.status !== 'Withdrawn' && !batchOf.has(e.courseId)) batchOf.set(e.courseId, e.batchId); });
+  const courses = listOf(s, 'courses').filter(c => c && (c.status === 'published' || batchOf.has(c.id)));
+  const open = new Set(courses.filter(c => c.status === 'published' && batchOf.has(c.id)).map(c => c.id)), inCourse = r => !!r && open.has(r.courseId);
+  // Domain.learnerQuizzes: published quizzes of the learner's own batch.
+  const ownBatch = r => inCourse(r) && !!r.batchId && r.batchId === batchOf.get(r.courseId);
+  const quizOk = q => ownBatch(q) && q.status === 'published';
+  const used = new Set(listOf(s, 'quizzes').filter(quizOk).flatMap(q => q.questionIds || []));
+  const mine = l => l.filter(own), none = () => [];
+  // Domain.announcementsFor (a day of slack on the expiry for time zones; the page checks the exact date) and own posts.
+  const base = roleOf(s, me)?.base || 'student', today = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  const annOk = a => !!a && (a.authorId === me.id || (a.status !== 'Draft' && (!a.expiry || a.expiry >= today) && (a.audience === 'everyone'
+    || (a.audience === 'learners' && base === 'student') || (a.audience === 'instructors' && base !== 'student') || (a.audience === 'course' && open.has(a.courseId)))));
+  const msgOk = m => !!m && (m.from === me.id || m.to === me.id);
+  // People the learner's screens show (messageRecipients, course instructors, message and announcement
+  // names): staff-console accounts, instructors of their courses, the other side of their messages and the
+  // authors of their announcements. Others' contact details are never sent; other learners not at all.
+  const people = new Set([...listOf(s, 'batches').filter(b => open.has(b?.courseId)).map(b => b.instructorId),
+    ...listOf(s, 'messages').filter(msgOk).flatMap(m => [m.from, m.to]), ...listOf(s, 'announcements').filter(annOk).map(a => a.authorId)]);
+  const profile = u => Object.fromEntries(PROFILE.filter(k => k in u).map(k => [k, u[k]]));
+  // Domain.learnerAssignments; results as the learner's /results page shows them (published only).
+  const view = { courses: () => courses.map(({ aiContent, ...c }) => c),
+    sessions: l => l.filter(inCourse).map(learnerSession), assignments: l => l.filter(a => ownBatch(a) && a.status !== 'Draft'), quizzes: l => l.filter(quizOk),
+    questions: l => l.filter(q => used.has(q?.id)).map(hideKey), results: l => l.filter(r => own(r) && r.published),
+    users: l => l.filter(u => u && (u.id === me.id || people.has(u.id) || roleOf(s, u)?.base === 'admin')).map(u => u.id === me.id ? u : profile(u)),
+    messages: l => l.filter(msgOk), notifications: l => l.filter(n => n?.userId === me.id), announcements: l => l.filter(annOk),
+    // Staff tools: banks are authoring material, rubrics marking guides, at-risk flags "never shown to learners".
+    questionBanks: none, rubrics: none, atRiskFlags: none,
+    ...Object.fromEntries(['quizAttempts', 'enrollments', 'submissions', 'progress', 'attendance', 'feedback', 'certificates', 'fees', 'practiceAttempts'].map(k => [k, mine])) };
+  const out = { ...s };
+  Object.entries(view).forEach(([k, f]) => { if (Array.isArray(s[k])) out[k] = f(s[k]); });
+  return out;
+}
+const toClient = (s, u) => forClient(readScope(s, u), u.id);
+const PROFILE = ['id', 'name', 'role', 'status', 'designation', 'avatarUrl'];
+/* A learner's save, before merge(): in the collections below, a record readScope hid or shortened keeps
+   the server's copy, so the save never deletes or changes what that learner could not see (a changed
+   copy is refused). Of what they see, a learner may message and notify the people shown to them (a
+   submission, an AI Tutor escalation), mark their own messages and notifications read, clear their own
+   notifications, add their own practice attempts, and change announcements only with announcements
+   permission. Accounts then go through guardUsers. */
+const SCOPED = ['users', 'messages', 'notifications', 'announcements', 'questionBanks', 'practiceAttempts', 'rubrics', 'atRiskFlags'];
+// updateRecord (js/core.js) also stamps updatedAt.
+const onlyRead = (p, n) => same({ ...p, read: n.read, updatedAt: n.updatedAt }, n);
+const LEARNER_WRITE = {
+  messages: (op, p, n, me, people) => op === 'create' ? n.from === me.id && people.has(n.to) : op === 'edit' && p.to === me.id && onlyRead(p, n),
+  notifications: (op, p, n, me, people) => op === 'create' ? n.userId === me.id || people.has(n.userId) : op === 'delete' || onlyRead(p, n),
+  practiceAttempts: (op, p, n, me) => op === 'create' && n.learnerId === me.id,
+  announcements: (op, p, n, me, people, prev) => can(prev, me, 'announcements', [op])
+};
+function unscope(prev, next, me, rejected) {
+  if (!learnerView(prev, me)) return next;
+  const v = readScope(prev, me), out = { ...next }, people = new Set(listOf(v, 'users').map(u => u.id));
+  for (const k of SCOPED) {
+    if (!Array.isArray(next[k])) { if (k in prev) out[k] = prev[k]; continue; }
+    const V = index(listOf(v, k)), d = new Map();
+    const refuse = (id, op, quiet) => { d.set(id, op === 'create' ? 'drop' : 'restore'); if (!quiet) rejected.push({ collection: k, id, op }); };
+    changes(listOf(prev, k), next[k], (id, op, p, n) => {
+      // Sent back unchanged (as shown, or as an app version from before this filter had it): not reported.
+      if (p && V.get(id) !== p) return refuse(id, op, op === 'delete' || same(n, V.get(id)) || same(n, (({ passwordHash, salt, ...x }) => x)(p)));
+      if (k !== 'users' && !LEARNER_WRITE[k]?.(op, p, n, me, people, prev)) refuse(id, op);
+    });
+    out[k] = rebuild(listOf(prev, k), next[k], d);
+  }
+  return out;
+}
 const OWN_LOCKED = ['id', 'role', 'status', 'email'];
 
 const listOf = (s, k) => Array.isArray(s?.[k]) ? s[k] : [];
@@ -291,13 +390,12 @@ function guardCourseData(prev, next, me, known, keptUsers = new Set()) {
   const arr = listOf;
   const P = {}, N = {};
   PROTECTED.forEach(k => { P[k] = index(arr(prev, k)); N[k] = index(arr(next, k)); });
-  const scope = role?.courseScope, mine = new Set(arr(prev, 'batches').filter(b => b.instructorId === me.id).map(b => b.courseId));
+  const scope = role?.courseScope, staff = staffScope(prev, me);
   const enrolment = courseId => arr(prev, 'enrollments').find(e => e && e.learnerId === me.id && e.courseId === courseId && e.status !== 'Withdrawn');
   const enrolled = new Set(arr(prev, 'enrollments').filter(e => e && e.learnerId === me.id && e.status !== 'Withdrawn').map(e => e.courseId));
   const created = new Set();
   // Same as Domain.visibleCourses in js/core.js; enrolled = published courses the actor is enrolled in.
-  const inScope = id => admin || scope === 'all' || (scope === 'selected' && (role.courseIds || []).includes(id)) || (scope === 'assigned' && mine.has(id))
-    || ((!scope || scope === 'enrolled') && enrolled.has(id) && P.courses.get(id)?.status === 'published') || created.has(id);
+  const inScope = id => staff(id) || ((!scope || scope === 'enrolled') && enrolled.has(id) && P.courses.get(id)?.status === 'published') || created.has(id);
   // A learner's own course (courseAccess in js/pages-learn.js): enrolled, not withdrawn, published.
   const learnsIn = courseId => !!enrolment(courseId) && P.courses.get(courseId)?.status === 'published';
   const rejected = [], decisions = Object.fromEntries(PROTECTED.map(k => [k, new Map()]));
@@ -443,7 +541,19 @@ function guardCourseData(prev, next, me, known, keptUsers = new Set()) {
     settle(k);
   });
 
+  /* questions (quiz editor and AI quiz drafts in js/pages-ai.js, quizzes from a blueprint in
+     js/pages-coursecontent.js): courses:edit or quizzes:<action>, both copies' course in scope. Without that,
+     a create or edit is refused, and a question missing from the request is kept silently (a learner's copy
+     leaves out what readScope hid). A copy with its answer key hidden counts as unchanged. */
+  const qd = new Map(), mayQ = (op, r) => !!r && (may('courses', 'edit') || may('quizzes', op)) && inScope(r.courseId);
+  changes(arr(prev, 'questions'), arr(next, 'questions'), (id, op, p, n) => {
+    if (admin || (op === 'create' ? mayQ(op, n) : mayQ(op, p) && (op === 'delete' || mayQ(op, n)))) return;
+    qd.set(id, op === 'create' ? 'drop' : 'restore');
+    if (op !== 'delete' && !(op === 'edit' && same(n, hideKey(p)))) rejected.push({ collection: 'questions', id, op });
+  });
+
   const out = { ...next };
+  if (Array.isArray(prev.questions) || Array.isArray(next.questions)) out.questions = rebuild(arr(prev, 'questions'), arr(next, 'questions'), qd);
   PROTECTED.forEach(k => { if (Array.isArray(prev[k]) || Array.isArray(next[k])) out[k] = rebuild(arr(prev, k), arr(next, k), decisions[k]); });
   return { state: out, rejected, resync: rejected.length > 0 || kept > 0 };
 }
@@ -451,7 +561,7 @@ function guardCourseData(prev, next, me, known, keptUsers = new Set()) {
 // One browser save, as PUT /api/sdc/state applies it: accounts, roles and settings first, then the
 // 14 protected collections (an account whose deletion was refused keeps its learner records).
 function applySave(prev, next, me, known) {
-  const refused = [], merged = merge(prev, next, me, refused);
+  const refused = [], merged = merge(prev, unscope(prev, next, me, refused), me, refused);
   const g = guardCourseData(prev, merged, me, known, new Set(refused.filter(x => x.collection === 'users' && x.op === 'delete').map(x => x.id)));
   return { state: g.state, rejected: [...refused, ...g.rejected], resync: g.resync || refused.length > 0 };
 }
@@ -463,7 +573,7 @@ router.get('/api/sdc/status', (req, res) => safeWrite().catch(() => false).then(
 router.use('/api/sdc', (req, res, next) => READY ? next() : res.status(503).json({ error: 'Cloud gateway is not configured (SDC_STATE_SECRET).' }));
 
 const issue = (u, remember) => jwt.sign({ uid: u.id }, SIGN, { expiresIn: remember ? '30d' : '12h' });
-const session = (state, updatedAt, u, remember) => ({ token: issue(u, remember), userId: u.id, state: forClient(state, u.id), updatedAt });
+const session = (state, updatedAt, u, remember) => ({ token: issue(u, remember), userId: u.id, state: toClient(state, u), updatedAt });
 function auth(req, res, next) {
   try { req.uid = jwt.verify(String(req.headers.authorization || '').replace(/^Bearer /, ''), SIGN).uid; next(); }
   catch (e) { res.status(401).json({ error: 'Your session has expired. Please sign in again.', code: 'auth_expired' }); }
@@ -508,7 +618,7 @@ router.post('/api/sdc/google', wrap(async (req, res) => {
 router.get('/api/sdc/state', auth, wrap(async (req, res) => {
   const { state, updatedAt } = await load(), me = state.users.find(u => u.id === req.uid);
   if (!me || me.status !== 'Active') return res.status(401).json({ error: 'Your account is no longer active.' });
-  res.json({ state: forClient(state, me.id), updatedAt });
+  res.json({ state: toClient(state, me), updatedAt });
 }));
 
 // Whole-state save from the browser. base.known lists the ids of the 14 protected collections that
@@ -550,13 +660,13 @@ function deliveryLabel(state, value) {
   const p = String(state.settings?.lms?.deliveryModes || '').split('|').map(x => x.split(':')).find(([v]) => String(v).trim() === value);
   return p ? String(p[1] || p[0]).trim() : value;
 }
-router.post('/api/sdc/courses/ai-draft', auth, wrap(async (req, res) => {
-  const { genId, outline, meta } = req.body || {};
-  if (!CG.validGenId(genId)) return res.status(400).json({ error: 'Invalid generation id.', code: 'bad_request' });
+// Also used by the MCP connector (backend/mcp-api.js). Returns [status, body].
+async function createDraft(uid, { genId, outline, meta } = {}) {
+  if (!CG.validGenId(genId)) return [400, { error: 'Invalid generation id.', code: 'bad_request' }];
   const problem = CG.validate(outline);
-  if (problem) return res.status(400).json({ error: problem, code: 'limits' });
+  if (problem) return [400, { error: problem, code: 'limits' }];
   const out = await commit((state, updatedAt) => {
-    const me = draftGate(state, req.uid);
+    const me = draftGate(state, uid);
     if (Array.isArray(me)) return { reply: me };
     const done = (state.courses || []).find(c => c.aiMeta?.genId === genId);
     if (done) return { reply: [200, draftReply(state, done, updatedAt, true)] };
@@ -578,9 +688,10 @@ router.post('/api/sdc/courses/ai-draft', auth, wrap(async (req, res) => {
       state: { ...state, courses: [...(state.courses || []), recs.course], sessions: [...(state.sessions || []), ...recs.sessions], batches: recs.batch ? [...(state.batches || []), recs.batch] : (state.batches || []) }
     };
   }, { safeOnly: true });
-  if (out.reply) return res.status(out.reply[0]).json(out.reply[1]);
-  res.json({ courseId: out.recs.course.id, updatedAt: out.updatedAt, alreadyCommitted: false, course: out.recs.course, sessions: out.recs.sessions, batch: out.recs.batch });
-}));
+  if (out.reply) return out.reply;
+  return [200, { courseId: out.recs.course.id, updatedAt: out.updatedAt, alreadyCommitted: false, course: out.recs.course, sessions: out.recs.sessions, batch: out.recs.batch }];
+}
+router.post('/api/sdc/courses/ai-draft', auth, wrap(async (req, res) => { const [status, body] = await createDraft(req.uid, req.body || {}); res.status(status).json(body); }));
 // Was this draft saved? Used after a timeout or lost response, before retrying the same genId.
 router.get('/api/sdc/courses/ai-draft/:genId', auth, wrap(async (req, res) => {
   const genId = req.params.genId;
@@ -607,6 +718,6 @@ router.get('/api/sdc/verify', wrap(async (req, res) => {
 router.get('/api/sdc/public', wrap(async (req, res) => { const { state } = await load(); res.json({ settings: state.settings || {} }); }));
 
 module.exports = router;
-module.exports._test = { applySave, merge, forClient, hashPassword, verify, migrate, guardCourseData, readKnown, same, rebuild, PROTECTED, pastDue, resetSafeWrite: () => { safe = { at: 0, ok: null }; } };
+module.exports._test = { applySave, merge, forClient, toClient,hashPassword, verify, migrate, guardCourseData, readKnown, same, rebuild, PROTECTED, pastDue, resetSafeWrite: () => { safe = { at: 0, ok: null }; } };
 // Shared with ai-api.js: the same secret-guarded storage and permission rules.
-module.exports.server = { READY, load, can, rpc, commit };
+module.exports.server = { READY, load, can, rpc, commit, roleOf, staffScope, findByEmail, verify, createDraft, listOf, same };

@@ -72,7 +72,8 @@ function videoBlock(session, unlocked) {
     const st = Domain.sessionStatus(session);
     return `<div class="video-frame video-empty">${icon('video', 28)}<b>${st === 'Upcoming' || st === 'Today' ? 'Recording will appear after the live class' : 'No recording for this ' + t('session', true)}</b><span>${st === 'Today' ? 'This class is live today — use the Zoom button above to join.' : st === 'Upcoming' ? `Scheduled for ${fmtDate(session.date)}${session.time ? ' at ' + fmtTime(session.time) : ''}.` : 'Check the resources for materials.'}</span></div>`;
   }
-  if (v.type === 'iframe') return `<div class="video-frame"><iframe src="${esc(v.src)}" title="${esc(session.title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>`;
+  const credit = session.videoTitle ? `<p class="small muted video-credit">${icon('video', 13)} <a href="${esc(session.videoUrl)}" target="_blank" rel="noopener">${esc(session.videoTitle)}</a>${session.videoChannel ? ` · ${esc(session.videoChannel)}` : ''} (YouTube)</p>` : '';
+  if (v.type === 'iframe') return `<div class="video-frame"><iframe src="${esc(v.src)}" title="${esc(session.videoTitle || session.title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>${credit}`;
   if (v.type === 'video') return `<div class="video-frame"><video controls preload="metadata" src="${esc(v.src)}"></video></div>`;
   return `<div class="video-frame video-empty">${icon('external', 28)}<b>Recording hosted externally</b><a class="btn btn-primary btn-sm" href="${esc(v.src)}" target="_blank" rel="noopener">Open recording</a></div>`;
 }

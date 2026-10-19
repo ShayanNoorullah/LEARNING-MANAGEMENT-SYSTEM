@@ -117,8 +117,20 @@ function db() {
 }
 // A failed write is never hidden: the person is told, the sync status turns to "storage" (a banner with
 // "Save to server" and "Download backup", js/sync-ui.js) and the error is thrown so the caller can undo.
+// The whole platform travels as one request, and Vercel rejects requests over 4.5 MB, so a save that would
+// grow the data past STATE_MAX is refused (shrinking saves still go through, so drafts can be deleted).
+// The storage meter, 80 % bar and the content builder's room check (js/cloud-sync.js usage()) use the same limit.
+// ponytail: one JSON row; move AI course content to its own rows if courses outgrow this.
+const STATE_MAX = 4.3e6;
+let _stateSize = null;
+function stateSize() { return _stateSize ?? (_stateSize = (localStorage.getItem(DBKEY) || '').length); }
 function persist(state) {
-  try { localStorage.setItem(DBKEY, JSON.stringify(state)); }
+  const json = JSON.stringify(state), mb = n => (n / 1e6).toFixed(1);
+  if (json.length > STATE_MAX && json.length > stateSize()) {
+    toast(`Not saved: the platform data would reach ${mb(json.length)} MB, above the ${mb(STATE_MAX)} MB the server accepts. Delete unused drafts or generated content, or download a backup (Settings → Data).`, 'error');
+    throw new Error('Platform data is full.');
+  }
+  try { localStorage.setItem(DBKEY, json); _stateSize = json.length; }
   catch (e) { window.SDCCloud?.storageFailed?.(e); toast('This browser has no room left, so this change was NOT stored. Save to the server or download a backup from the banner at the top.', 'error'); throw e; }
   window.SDCCloud?.storageOk?.();
 }

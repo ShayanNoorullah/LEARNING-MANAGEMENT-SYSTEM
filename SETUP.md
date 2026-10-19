@@ -29,7 +29,9 @@ All are optional for local use. Set them in `.env` locally, or in your host's da
 | `UPLOAD_MAX_MB` | `30` | Maximum upload size enforced by the server |
 | `UPLOAD_ALLOWED_TYPES` | `xlsx,xls,xlsm,csv,docx,doc,pptx,ppt,pdf,pbix,twbx,twb,ipynb,sql,txt,md,zip,png,jpg,jpeg,webp,svg,mp4` | File extensions the server accepts |
 | `DATABASE_URL` | — | Neon PostgreSQL connection string for the server's own state (see §6) |
-| `PUBLIC_URL`, `WEBAUTHN_ORIGIN`, `WEBAUTHN_RP_ID` | — | Only used by the legacy passkey API endpoints (not shown in the current UI) |
+| `PUBLIC_URL`, `WEBAUTHN_ORIGIN`, `WEBAUTHN_RP_ID` | — | Legacy passkey endpoints; `PUBLIC_URL` also sets the public address the MCP connector announces (set it behind a proxy) |
+| `SDC_MCP` | off | `1` turns on the Course Builder connector for ChatGPT and Claude at `/mcp` (needs `SDC_STATE_SECRET`; section 5d) |
+| `SDC_MCP_REDIRECT_HOSTS` | — | Extra hosts (comma list) an MCP client may return to after sign-in, besides Claude, ChatGPT and this computer |
 
 The upload limits in **Settings → Learning** control what the browser offers; the server variables above are the final check. Keep them consistent.
 
@@ -97,6 +99,7 @@ AI calls go through `backend/ai-api.js`. API keys are **never** stored in `local
 3. With the state gateway (`SDC_STATE_SECRET`) on, AI uses the cloud session token. Local `/api/ai/auth` minting stays **off** unless you set `SDC_AI_LOCAL_OPEN=1` (dev only). Without a gateway, local minting stays on for demos.
 4. Turn features on/off under **Settings → Features** (`ai`, `quizzes`, `aiTutor`, …) and map providers under **Integrations → Capability map**.
 5. **AI course generator.** Off by default: turn on **Settings → Features → AI course generator**, and set the provider, model and temperature (default 0.4) of the `courseGenerate` capability. It needs the state gateway (`SDC_STATE_SECRET`) and the `sdc_state_put_if` database function (supabase/MIGRATIONS.md); without them it refuses to save. Each outline is one request of up to 8,000 output tokens within a 50-second budget. For trying it without a provider on a developer machine only, set `SDC_AI_MOCK=1`: it answers with a clearly labelled sample outline (not AI) and is ignored on Vercel and when `NODE_ENV=production`.
+6. **Session videos (YouTube).** The course generator and Course Builder → Content attach a YouTube video to each session using the YouTube Data API v3. In Google Cloud Console: create or pick a project, enable **YouTube Data API v3**, create an **API key** (restrict it to that API). Paste it in **Settings → Integrations → YouTube videos** and press **Test**, or set `YOUTUBE_API_KEY` in Vercel. The free quota is 10,000 units a day; one search is 100 units, so about 100 sessions a day (results are cached for 12 hours). Without a key, courses are generated without videos and links can be added by hand.
 
 #### AI key encryption (administrator procedure after this update)
 
@@ -123,6 +126,17 @@ npm run db:local -- dev      # run the app against sdc_dev (gateway mode, local 
 ```
 
 `dev` starts a small local stand-in for the Supabase REST endpoint (`scripts/localdb/rest.js`, development only) on `127.0.0.1:54321` and the server with `SUPABASE_URL` pointing at it and a generated secret from `.localdb/dev-secret`. Sign in with the demo accounts. Google sign-in is not available locally. The tools refuse any host other than 127.0.0.1, any database not named `sdc_dev*` or `sdc_test*`, and production environments.
+
+### 5d. Connect ChatGPT or Claude to the Course Builder (MCP)
+
+The connector is off by default. It needs the state gateway (`SDC_STATE_SECRET`), the `sdc_state_put_if` function and `SDC_MCP=1` on the server. Only people whose role can edit or create courses can connect, and only their own courses are reachable (FEATURES.md section 9).
+
+- **Server address.** The connector URL is `https://<your server>/mcp`. ChatGPT and Claude call it from the internet, so it needs HTTPS and a public address. Behind a proxy set `PUBLIC_URL=https://<your server>`. On Vercel the routes are in `vercel.json`.
+- **Claude** (claude.ai or Claude Desktop): Settings → Connectors → Add custom connector → paste the URL → Connect. A page of your server opens: sign in with your LMS email and password. Claude Code: `claude mcp add --transport http sdc-learn https://<your server>/mcp`, then `/mcp` to sign in.
+- **ChatGPT** (developer mode, where your plan offers it): Settings → Apps & Connectors → Advanced → Developer mode on → Create → paste the URL, authentication OAuth → sign in on the page that opens.
+- **On this computer only**, for a protocol check: run the server with `SDC_MCP=1` (for example `npm run db:local -- dev` with `SDC_MCP=1` in `.env`) and point an MCP client that runs on the same machine at `http://localhost:3000/mcp`. Hosted ChatGPT and Claude cannot reach `localhost`; use a tunnel only with a test database.
+- **What the assistant may do.** Read and check courses, write proposals, and save outline changes, new draft courses or accepted proposals only after you approved them in the conversation. Proposals also appear in the Course Builder (session → review the proposal) for you to accept there. It never publishes.
+- **Turning it off.** Remove `SDC_MCP` and redeploy. Changing `SDC_STATE_SECRET` ends every connector sign-in.
 
 ## 6. Sign in with Google
 

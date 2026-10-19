@@ -1,0 +1,489 @@
+{
+  "completed": false,
+  "error": "page.waitForFunction: Timeout 5000ms exceeded.",
+  "results": [
+    {
+      "name": "server key masking",
+      "status": "Pass",
+      "evidence": "four dummy profiles configured; no raw dummy key in browser status"
+    },
+    {
+      "name": "authorization",
+      "status": "Pass",
+      "evidence": "learner refused all three builder capabilities; unauthenticated local-token mint refused"
+    },
+    {
+      "name": "gemini-switch outline/draft",
+      "status": "Pass",
+      "evidence": "24 sessions, edited outline survives reload, atomic draft persisted; no fee/enrollments"
+    },
+    {
+      "name": "gemini to groq",
+      "status": "Pass",
+      "evidence": "24 sessions; quota after 10 complete; 30 finished parts + manual edit unchanged; only incomplete parts resumed after browser reload; global Settings unchanged"
+    },
+    {
+      "name": "groq-switch outline/draft",
+      "status": "Pass",
+      "evidence": "24 sessions, edited outline survives reload, atomic draft persisted; no fee/enrollments"
+    }
+  ],
+  "calls": [
+    {
+      "provider": "gemini",
+      "kind": "outline",
+      "n": 0,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 1,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 2,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 1,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 2,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 1,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 2,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 3,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 4,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 3,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 4,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 3,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 4,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 5,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 6,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 5,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 6,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 5,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 6,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 7,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 8,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 7,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 8,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 7,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 8,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 9,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 10,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 9,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "practice",
+      "n": 10,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 9,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "assess",
+      "n": 10,
+      "fail": false
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 11,
+      "fail": true
+    },
+    {
+      "provider": "gemini",
+      "kind": "lesson",
+      "n": 12,
+      "fail": true
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 12,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 11,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 12,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 11,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 12,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 11,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 13,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 14,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 13,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 14,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 13,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 14,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 15,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 16,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 15,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 16,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 15,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 16,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 17,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 18,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 17,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 18,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 17,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 18,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 19,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 20,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 19,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 20,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 19,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 20,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 22,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 21,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 22,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 21,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 21,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 22,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 23,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "lesson",
+      "n": 24,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 23,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "practice",
+      "n": 24,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 23,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "assess",
+      "n": 24,
+      "fail": false
+    },
+    {
+      "provider": "groq",
+      "kind": "outline",
+      "n": 0,
+      "fail": false
+    }
+  ]
+}

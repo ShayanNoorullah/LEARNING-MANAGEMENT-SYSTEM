@@ -158,13 +158,15 @@ async function run(backend) {
 
     await step('learner cannot create, edit or delete courses, sessions or batches', async () => {
       const l = await login('L');
+      assert.ok(!l.state.courses.some(c => c.id === 'C2') && !l.state.sessions.some(x => x.id === 'S3'), 'the draft course is not sent to the learner');
+      // A crafted request that claims to have seen the draft and deletes it.
       const r = await push(l, s => {
         s.courses.push({ id: 'CEVIL', title: 'x', slug: 'x', status: 'published' });
         s.courses[0].title = 'Changed'; s.courses = s.courses.filter(c => c.id !== 'C2');
         s.sessions[0].aiPinnedSummary = { text: 'pinned' };
         s.batches.push({ id: 'BEVIL', courseId: 'C1', instructorId: 'L' });
         s.users.find(u => u.id === 'L').name = 'Renamed Learner';
-      });
+      }, { known: { ...l.known, courses: [...l.known.courses, 'C2'] } });
       assert.equal(r.status, 200);
       const ops = r.body.rejected.map(x => `${x.collection}:${x.id}:${x.op}`).sort();
       assert.deepEqual(ops, ['batches:BEVIL:create', 'courses:C1:edit', 'courses:C2:delete', 'courses:CEVIL:create', 'sessions:S1:edit'].sort());
@@ -172,6 +174,169 @@ async function run(backend) {
       for (const k of TRACKED) assert.deepEqual(s[k], baseState()[k], k + ' unchanged');
       assert.equal(s.users.find(u => u.id === 'L').name, 'Renamed Learner', 'allowed parts of the same save are kept');
       assert.equal(r.body.resync, true);
+    });
+
+    await step('learner reads over HTTP: own active course only, approved manual lesson, no staff data or answer keys', async () => {
+      const lesson = { lesson: [{ heading: 'Hand written intro' }], teacherNotes: ['staff notes'],
+        meta: { approved: true, edited: { by: 'T', at: 't', parts: ['lesson'] }, parts: { practice: { at: 't', provider: 'groq', model: 'mx-model', tokens: 77, instructions: 'STAFF PROMPT' } }, history: [{ id: 'h1' }] } };
+      const over = {
+        courses: [...baseState().courses, { id: 'C3', title: 'Other published', slug: 'other', status: 'published' }],
+        sessions: [{ ...baseState().sessions[0], content: lesson }, ...baseState().sessions.slice(1), { id: 'S4', courseId: 'C3', title: 'Other lesson', content: { lesson: [{ heading: 'C3 secret lesson' }], meta: { approved: true, parts: { lesson: { at: 't' } } } } }],
+        assignments: [...baseState().assignments, { id: 'AS9', courseId: 'C3', batchId: 'B9', title: 'Other task', status: 'Published' }],
+        quizzes: [{ id: 'QZ1', courseId: 'C1', batchId: 'B1', status: 'published', questionIds: ['Q1', 'Q2'], attemptLimit: 1 }, { id: 'QZ9', courseId: 'C3', batchId: 'B9', status: 'published', questionIds: ['Q9'] }],
+        questions: [{ id: 'Q1', courseId: 'C1', type: 'mcq_single', points: 1, stem: 'Pick a', options: [{ id: 'a', text: 'A', correct: true }, { id: 'b', text: 'B' }] },
+          { id: 'Q2', courseId: 'C1', type: 'short', points: 2, stem: 'Explain', modelAnswer: 'model answer text', keywords: ['kw-secret'] },
+          { id: 'Q9', courseId: 'C3', type: 'mcq_single', points: 1, stem: 'C3 question', options: [{ id: 'a', correct: true }] }],
+        quizAttempts: [] };
+      await reset(over);
+      const strip = s => JSON.stringify(['sessions', 'assignments', 'quizzes', 'questions'].map(k => s[k]));
+      const check = (s, who) => {
+        assert.deepEqual(['courses', 'sessions', 'assignments', 'quizzes', 'questions'].map(k => s[k].map(r => r.id).join(',')), ['C1,C3', 'S1,S2', 'AS1', 'QZ1', 'Q1,Q2'], who + ': catalogue keeps C3, its work is not sent; draft C2 not sent');
+        assert.ok(!/correct|model answer|kw-secret|STAFF PROMPT|groq|mx-model|tokens|staff notes|history|C3 secret|C3 question/.test(strip(s)), who + ': no answer keys or staff data');
+        const S1 = s.sessions.find(x => x.id === 'S1');
+        assert.deepEqual(S1.content, { lesson: lesson.lesson, meta: { parts: { lesson: {}, practice: {} }, approved: true } }, who + ': the approved hand-written lesson is sent');
+      };
+      const l = await login('L');
+      check(l.state, 'login');
+      check((await callApi('GET', '/api/sdc/state', undefined, l.token)).body.state, 'GET /state');
+      // An ordinary learner save (progress) plus a quiz taken without the key: nothing hidden is lost.
+      const r = await push(l, s => {
+        s.progress = [{ id: 'PRL', learnerId: 'L', courseId: 'C1', completedSessionIds: ['S1'] }];
+        s.quizAttempts.push({ id: 'QAL', quizId: 'QZ1', courseId: 'C1', learnerId: 'L', answers: { Q1: 'a', Q2: 'my words' }, aiReviews: {}, score: 0, maxScore: 3, percent: 0, status: 'Submitted' });
+      });
+      assert.equal(r.status, 200); assert.ok(!r.body.rejected, JSON.stringify(r.body.rejected));
+      const db = await row(), want = baseState(over);
+      for (const k of ['courses', 'sessions', 'assignments', 'quizzes', 'questions']) assert.deepEqual(db[k], want[k], k + ': hidden records and staff data kept in the database');
+      assert.deepEqual(db.progress.map(x => x.id), ['PRL']);
+      assert.deepEqual((({ score, percent, pendingShort }) => ({ score, percent, pendingShort }))(db.quizAttempts.find(a => a.id === 'QAL')), { score: 1, percent: 33, pendingShort: true }, 'scored by the server');
+      // Crafted question writes are still refused.
+      const q = await push(l, s => { s.questions[0].options[1].correct = true; s.questions.push({ id: 'QEVIL', courseId: 'C1', type: 'short', stem: 'x' }); s.questions = s.questions.filter(x => x.id !== 'Q2'); });
+      assert.deepEqual(q.body.rejected.map(x => `${x.id}:${x.op}`).sort(), ['Q1:edit', 'QEVIL:create']);
+      assert.deepEqual((await row()).questions, want.questions);
+      // Staff still receive everything they manage.
+      const a = await login('A'), t = await login('T');
+      assert.deepEqual(a.state.questions, want.questions, 'coordinator: full questions with keys');
+      assert.deepEqual(a.state.sessions.find(x => x.id === 'S1').content, lesson, 'coordinator: full teaching content');
+      assert.ok(has(a.state, 'sessions', 'S4') && has(a.state, 'courses', 'C2'));
+      assert.deepEqual(t.state.sessions.find(x => x.id === 'S1').content, lesson, 'instructor: full teaching content');
+      // Withdrawn: the course stays in the catalogue, its lessons and assessments are not sent.
+      const w = clone(over); w.enrollments = [{ ...baseState().enrollments[0], status: 'Withdrawn' }];
+      await reset(w);
+      const lw = await login('L');
+      assert.deepEqual(['courses', 'sessions', 'assignments', 'quizzes', 'questions'].map(k => lw.state[k].map(x => x.id).join(',')), ['C1,C3', '', '', '', '']);
+      const rw = await push(lw, s => { s.users.find(u => u.id === 'L').phone = '123'; });
+      assert.equal(rw.status, 200); assert.ok(!rw.body.rejected);
+      for (const k of ['sessions', 'assignments', 'quizzes', 'questions']) assert.deepEqual((await row())[k], baseState(w)[k], k + ': kept after a withdrawn learner saves');
+    });
+
+    await step('learner reads over HTTP: only their own records, only the published work of their own batch', async () => {
+      const b = baseState();
+      const KEYS = ['enrollments', 'submissions', 'quizzes', 'questions', 'quizAttempts', 'assignments', 'progress', 'attendance', 'results', 'feedback', 'certificates', 'fees'];
+      const over = {
+        users: [...b.users, user('L2', 'student')],
+        batches: [...b.batches, { id: 'B1b', courseId: 'C1', name: 'Data-Evening-2026', instructorId: 'T', status: 'Active' }],
+        enrollments: [...b.enrollments, { id: 'EN2', learnerId: 'L2', courseId: 'C1', batchId: 'B1b', status: 'Active' }],
+        submissions: [...b.submissions, { id: 'SUB2', learnerId: 'L2', assignmentId: 'AS1', courseId: 'C1', status: 'Graded', grade: 9, feedback: 'L2 private feedback' }],
+        quizzes: [{ id: 'QZ1', courseId: 'C1', batchId: 'B1', status: 'published', questionIds: ['Q1'], attemptLimit: 2 },
+          { id: 'QZD', courseId: 'C1', batchId: 'B1', status: 'draft', questionIds: ['QD'] }, { id: 'QZB', courseId: 'C1', batchId: 'B1b', status: 'published', questionIds: ['QB'] }],
+        questions: [{ id: 'Q1', courseId: 'C1', type: 'mcq_single', points: 1, stem: 'Pick a', options: [{ id: 'a', text: 'A', correct: true }, { id: 'b', text: 'B' }] },
+          { id: 'QD', courseId: 'C1', type: 'short', points: 1, stem: 'Draft quiz question' }, { id: 'QB', courseId: 'C1', type: 'short', points: 1, stem: 'Evening batch question' }],
+        quizAttempts: [{ id: 'QA2', quizId: 'QZB', courseId: 'C1', learnerId: 'L2', answers: { QB: 'x' }, score: 1, maxScore: 1, percent: 100, status: 'Submitted' }],
+        assignments: [...b.assignments, { id: 'ASD', courseId: 'C1', batchId: 'B1', title: 'Draft task secret', status: 'Draft' }, { id: 'ASE', courseId: 'C1', batchId: 'B1b', title: 'Evening task', status: 'Published' }],
+        progress: [{ id: 'PR1', learnerId: 'L', courseId: 'C1', completedSessionIds: [] }, { id: 'PR2', learnerId: 'L2', courseId: 'C1', completedSessionIds: ['S1', 'S2'] }],
+        attendance: [...b.attendance, { id: 'AT2', sessionId: 'S1', learnerId: 'L2', courseId: 'C1', status: 'Absent', notes: 'L2 absence note' }],
+        results: [{ id: 'RL', learnerId: 'L', courseId: 'C1', finalPct: 80, grade: 'A', published: true }, { id: 'R2', learnerId: 'L2', courseId: 'C1', finalPct: 30, grade: 'F', remarks: 'L2 unpublished remark', published: false }],
+        feedback: [{ id: 'FB2', learnerId: 'L2', courseId: 'C1', rating: 1, comment: 'L2 private comment' }],
+        certificates: [{ id: 'CT1', code: 'CERT-2026-0001', learnerId: 'L', courseId: 'C1', status: 'Valid', issuedAt: '2026-01-01', issuedBy: 'A' }, { id: 'CT2', code: 'CERT-2026-0002', learnerId: 'L2', courseId: 'C1', status: 'Revoked', revokeReason: 'L2 revoke reason', issuedAt: '2026-01-02', issuedBy: 'A' }],
+        fees: [{ id: 'FE1', learnerId: 'L', courseId: 'C1', type: 'Course Fee', amount: 100, status: 'Pending' }, { id: 'FE2', learnerId: 'L2', courseId: 'C1', type: 'Course Fee', amount: 100, status: 'Overdue', reference: 'L2 fee ref' }] };
+      await reset(over);
+      const view = s => KEYS.map(k => s[k].map(r => r.id).join(','));
+      const SECRET = /L2 |Draft quiz|Draft task|Evening|"correct"/;
+      const l = await login('L');
+      for (const s of [l.state, (await callApi('GET', '/api/sdc/state', undefined, l.token)).body.state]) {
+        assert.deepEqual(view(s), ['EN1', 'SUB1', 'QZ1', 'Q1', '', 'AS1', 'PR1', 'AT1', 'RL', '', 'CT1', 'FE1'], 'L: own records, published work of batch B1 only');
+        assert.ok(!SECRET.test(JSON.stringify(KEYS.map(k => s[k]))), 'L: nothing of L2, no draft or other-batch work, no key');
+      }
+      const l2 = (await login('L2')).state;
+      assert.deepEqual(view(l2), ['EN2', 'SUB2', 'QZB', 'QB', 'QA2', 'ASE', 'PR2', 'AT2', '', 'FB2', 'CT2', 'FE2'], 'L2: their own batch and records; their unpublished result is not sent');
+      assert.ok(!/L2 unpublished/.test(JSON.stringify(l2.results)));
+      // L marks a session done, leaves feedback and takes their quiz: accepted, scored by the server, nothing hidden is lost.
+      const r = await push(l, s => {
+        s.progress.find(p => p.id === 'PR1').completedSessionIds = ['S1'];
+        s.feedback.push({ id: 'FBL', learnerId: 'L', courseId: 'C1', rating: 5, comment: 'good' });
+        s.quizAttempts.push({ id: 'QAL', quizId: 'QZ1', courseId: 'C1', learnerId: 'L', answers: { Q1: 'a' }, aiReviews: {}, score: 0, maxScore: 1, percent: 0, status: 'Submitted' });
+      });
+      assert.equal(r.status, 200); assert.ok(!r.body.rejected, JSON.stringify(r.body.rejected));
+      let db = await row();
+      const want = baseState(over), HIDDEN = ['enrollments', 'submissions', 'quizzes', 'questions', 'assignments', 'attendance', 'results', 'certificates', 'fees'];
+      for (const k of HIDDEN) assert.deepEqual(db[k], want[k], k + ': hidden records kept in the database');
+      assert.deepEqual([db.progress, db.feedback.map(f => f.id)], [[{ ...want.progress[0], completedSessionIds: ['S1'] }, want.progress[1]], ['FB2', 'FBL']], 'L\'s progress and feedback saved, L2\'s kept');
+      assert.deepEqual(db.quizAttempts.map(a => [a.id, a.percent]), [['QA2', 100], ['QAL', 100]], 'L2\'s attempt kept; L\'s attempt scored by the server');
+      // Crafted writes: hidden quizzes and assignments, L2's records, and L's own marks, payments and certificates are refused.
+      const x = await push(l, s => {
+        s.quizAttempts.push({ id: 'QXD', quizId: 'QZD', courseId: 'C1', learnerId: 'L', answers: {}, status: 'Submitted' }, { id: 'QXB', quizId: 'QZB', courseId: 'C1', learnerId: 'L', answers: {}, status: 'Submitted' });
+        s.submissions.push({ id: 'SUB2', learnerId: 'L2', assignmentId: 'AS1', courseId: 'C1', status: 'Submitted', grade: null, feedback: '' },
+          { id: 'SXD', learnerId: 'L', assignmentId: 'ASD', courseId: 'C1', status: 'Submitted' }, { id: 'SXE', learnerId: 'L', assignmentId: 'ASE', courseId: 'C1', status: 'Submitted' });
+        s.progress.push({ id: 'PR2', learnerId: 'L2', courseId: 'C1', completedSessionIds: [] });
+        s.feedback.push({ id: 'FB2', learnerId: 'L2', courseId: 'C1', rating: 5 });
+        s.attendance.push({ id: 'AT9', sessionId: 'S2', learnerId: 'L', courseId: 'C1', status: 'Present' });
+        s.results.find(x => x.id === 'RL').finalPct = 100;
+        s.certificates.push({ id: 'CTX', code: 'CERT-2026-0009', learnerId: 'L', courseId: 'C1', status: 'Valid' });
+        s.fees.find(x => x.id === 'FE1').status = 'Paid';
+      });
+      assert.deepEqual(x.body.rejected.map(e => `${e.collection}:${e.id}:${e.op}`).sort(), ['attendance:AT9:create', 'certificates:CTX:create', 'feedback:FB2:edit', 'fees:FE1:edit', 'progress:PR2:edit',
+        'quizAttempts:QXB:create', 'quizAttempts:QXD:create', 'results:RL:edit', 'submissions:SUB2:edit', 'submissions:SXD:create', 'submissions:SXE:create']);
+      const after = await row();
+      assert.deepEqual(KEYS.map(k => after[k]), KEYS.map(k => db[k]), 'every refused write is undone');
+      // Coordinator and instructor still receive everything.
+      for (const who of ['A', 'T']) assert.deepEqual(view((await login(who)).state), ['EN1,EN2', 'SUB1,SUB2', 'QZ1,QZD,QZB', 'Q1,QD,QB', 'QA2,QAL', 'AS1,ASD,ASE', 'PR1,PR2', 'AT1,AT2', 'RL,R2', 'FB2,FBL', 'CT1,CT2', 'FE1,FE2'], who + ': full access');
+    });
+
+    await step('learner reads over HTTP: people shown to them, own messages, notifications and practice, their announcements, no staff tools', async () => {
+      const b = baseState(), S = ['users', 'messages', 'notifications', 'announcements', 'questionBanks', 'practiceAttempts', 'rubrics', 'atRiskFlags'];
+      const over = {
+        users: [...b.users, { ...user('L2', 'student'), phone: 'L2 phone' }],
+        enrollments: [...b.enrollments, { id: 'EN2', learnerId: 'L2', courseId: 'C1', batchId: 'B1', status: 'Active' }],
+        messages: [{ id: 'M1', from: 'T', to: 'L', subject: 'Welcome', body: 'hi', read: false }, { id: 'M2', from: 'L2', to: 'T', subject: 'L2 private message', body: 'x', read: false }],
+        notifications: [{ id: 'N1', userId: 'L', title: 'Yours', read: false }, { id: 'N2', userId: 'L2', title: 'L2 grade notice', read: false }],
+        announcements: [{ id: 'AN1', audience: 'learners', authorId: 'A', title: 'For learners', status: 'Published' }, { id: 'AN2', audience: 'instructors', authorId: 'A', title: 'Staff memo', status: 'Published' },
+          { id: 'AN3', audience: 'course', courseId: 'C2', authorId: 'T2', title: 'Web course news', status: 'Published' }],
+        questionBanks: [{ id: 'QB1', courseId: 'C1', title: 'Bank secret' }],
+        practiceAttempts: [{ id: 'PA1', learnerId: 'L', courseId: 'C1', percent: 60 }, { id: 'PA2', learnerId: 'L2', courseId: 'C1', percent: 5 }],
+        rubrics: [{ id: 'RB1', assignmentId: 'AS1', criteria: ['Rubric secret'] }],
+        atRiskFlags: [{ id: 'AR1', learnerId: 'L', courseId: 'C1', level: 'High', factors: ['Risk secret'] }] };
+      await reset(over);
+      const view = s => S.map(k => s[k].map(r => r.id).join(','));
+      const SECRET = /L2 |Staff memo|Web course|Bank secret|Rubric secret|Risk secret|@test\.local|passwordHash/;
+      const l = await login('L');
+      for (const s of [l.state, (await callApi('GET', '/api/sdc/state', undefined, l.token)).body.state]) {
+        assert.deepEqual(view(s), ['A,A2,T,L,E,H,IN', 'M1', 'N1', 'AN1', '', 'PA1', '', ''], 'L: staff-console accounts and their instructor, their own messages, notifications and practice, the learner announcement');
+        assert.ok(!SECRET.test(JSON.stringify(S.map(k => k === 'users' ? s.users.filter(u => u.id !== 'L') : s[k]))), 'nothing of L2, no staff records, no one else\'s email or password hash');
+        assert.equal(s.users.find(u => u.id === 'L').email, 'l@test.local', 'their own account in full');
+      }
+      // L reads and answers their instructor, clears a notification, notifies the instructor and practises.
+      const r = await push(l, s => {
+        s.messages[0].read = true; s.messages.push({ id: 'M3', from: 'L', to: 'T', subject: 'Re: Welcome', body: 'thanks', read: false });
+        s.notifications = [{ id: 'N3', userId: 'T', title: 'New submission', read: false }]; s.practiceAttempts.push({ id: 'PA3', learnerId: 'L', courseId: 'C1', percent: 90 });
+      });
+      assert.equal(r.status, 200); assert.ok(!r.body.rejected, JSON.stringify(r.body.rejected));
+      const want = baseState(over), db = await row();
+      assert.deepEqual(view(db), ['A,A2,T,T2,L,E,CR,H,IN,L2', 'M1,M2,M3', 'N2,N3', 'AN1,AN2,AN3', 'QB1', 'PA1,PA2,PA3', 'RB1', 'AR1'], 'L\'s changes saved; nothing hidden was deleted');
+      assert.deepEqual([db.users, db.messages[0].read, db.notifications[0], ...['announcements', 'questionBanks', 'rubrics', 'atRiskFlags'].map(k => db[k])],
+        [want.users, true, want.notifications[1], ...['announcements', 'questionBanks', 'rubrics', 'atRiskFlags'].map(k => want[k])], 'accounts (with hashes and contact details) and hidden records unchanged');
+      // Crafted writes (from a fresh copy) are refused and undone.
+      const x = await push(await login('L'), s => {
+        s.messages.push({ id: 'M2', from: 'L2', to: 'T', subject: 'forged' }, { id: 'MX', from: 'L2', to: 'T', subject: 'as L2' });
+        s.notifications.push({ id: 'NX', userId: 'L2', title: 'spam' }); s.announcements.push({ id: 'ANX', audience: 'everyone', authorId: 'L', title: 'x' });
+        s.questionBanks.push({ id: 'QBX' }); s.rubrics.push({ id: 'RB1', criteria: [] }); s.atRiskFlags.push({ id: 'AR1', level: 'Low' });
+        s.practiceAttempts.push({ id: 'PA2', learnerId: 'L2', percent: 100 }); s.users.find(u => u.id === 'T').name = 'renamed';
+      });
+      assert.deepEqual(x.body.rejected.map(e => `${e.collection}:${e.id}:${e.op}`).sort(), ['announcements:ANX:create', 'atRiskFlags:AR1:edit', 'messages:M2:edit', 'messages:MX:create', 'notifications:NX:create',
+        'practiceAttempts:PA2:edit', 'questionBanks:QBX:create', 'rubrics:RB1:edit', 'users:T:edit']);
+      const after = await row();
+      const byId = l => l.slice().sort((a, b) => a.id.localeCompare(b.id));
+      assert.deepEqual(S.map(k => byId(after[k])), S.map(k => byId(db[k])), 'every refused write is undone');
+      for (const who of ['A', 'T']) assert.deepEqual(view((await login(who)).state), view(after), who + ': full access');
     });
 
     await step('instructor: own course sessions yes; other course, publish, delete, new course no', async () => {
@@ -311,6 +476,12 @@ async function run(backend) {
       const s = await row();
       assert.equal((s.enrollments || []).length, 1, 'no enrolment was created'); // the one seeded enrolment only
       assert.equal(!!r.body.batch, false);
+      // videos chosen in the review are saved on their sessions; anything that is not a YouTube video id is dropped
+      const vids = await draft(a, body({ modules: [{ name: 'Module 1', sessions: [{ title: 'Lesson 1', video: { id: 'dQw4w9WgXcQ', title: 'Pivot tables', channel: 'Excel Channel', duration: 600 } },
+        { title: 'Lesson 2', video: { id: 'javascript:x', title: 'bad' } }, { title: 'Lesson 3', video: null, videoUrl: 'https://evil.example/x.mp4' }] }] }));
+      assert.equal(vids.status, 200);
+      assert.deepEqual(vids.body.sessions.map(x => [x.videoUrl || '', x.videoTitle || '', x.videoChannel || '']), [['https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'Pivot tables', 'Excel Channel'], ['', '', ''], ['', '', '']]);
+      assert.equal((await row()).sessions.find(x => x.id === vids.body.sessions[0].id).videoUrl, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'stored in the shared state');
       const demo = await draft(a, body({}, { provider: 'mock-demo', model: 'mock-demo', mock: true }));
       assert.equal(demo.body.course.aiMeta.mock, true, 'demo-mode drafts are marked as such');
       const forged = await draft(a, body({}, { provider: 'x'.repeat(200), model: { a: 1 }, mock: 'yes' }));
@@ -368,7 +539,8 @@ async function run(backend) {
     await step('base.known cannot grant anything and is size-limited', async () => {
       const l = await login('L');
       const r = await push(l, s => { s.courses = s.courses.filter(c => c.id !== 'C1'); }, { known: { courses: ['C1', 'C2'], sessions: [], batches: [] } });
-      assert.deepEqual(r.body.rejected, [{ collection: 'courses', id: 'C1', op: 'delete' }]);
+      // C2 (a draft the learner never received) is "deleted" too by claiming it is known: also refused.
+      assert.deepEqual(r.body.rejected, [{ collection: 'courses', id: 'C1', op: 'delete' }, { collection: 'courses', id: 'C2', op: 'delete' }]);
       const a = await login('A');
       const junk = await callApi('PUT', '/api/sdc/state', { state: a.state, base: { known: { courses: 'C1', sessions: [{}], batches: null } } }, a.token);
       assert.equal(junk.status, 200, 'malformed base is treated as empty');
@@ -485,7 +657,19 @@ async function run(backend) {
       assert.equal((await ai(l, 'courseContent')).status, 403, 'session content needs courses:edit');
       assert.equal((await ai(t, 'courseContent')).status, 400, 'an instructor who edits courses passes the guard (then: no provider configured)');
       assert.equal((await ai(a, 'courseContent')).status, 400);
+      // YouTube videos for the Course Builder: the same guard; with no YouTube key the answer is "not configured"
+      const vids = (c, feature) => callApi('POST', '/api/ai/videos', { feature, queries: ['excel pivot tables'] }, c.token);
+      assert.equal((await vids(l, 'courseGenerate')).status, 403);
+      assert.equal((await vids(t, 'courseGenerate')).status, 403, 'finding videos for a new course needs courses:create');
+      assert.equal((await vids(l, 'courseContent')).status, 403);
+      assert.deepEqual([(await vids(a, 'courseGenerate')).status, (await vids(a, 'courseGenerate')).body.code], [400, 'not_configured']);
+      assert.equal((await vids(t, 'courseContent')).status, 400, 'an instructor who edits courses passes the guard');
+      assert.equal((await vids(a, 'tutor')).status, 400, 'only the Course Builder features can search videos');
+      assert.equal((await vids(a)).status, 400, 'a request without a feature is refused, not let through the guard');
+      assert.equal((await callApi('POST', '/api/ai/youtube', { apiKey: 'AIzaTestOnly' }, l.token)).status, 403, 'only administrators set the YouTube key');
+      assert.equal((await callApi('POST', '/api/ai/youtube', { apiKey: 'AIzaTestOnly' }, t.token)).status, 403);
       await reset({ settings: { features: { courseGen: false } } });
+      assert.equal((await vids(await login('A'), 'courseGenerate')).status, 403, 'switch OFF: no video search either');
       assert.equal((await ai(await login('A'), 'courseGenerate')).status, 403, 'switch OFF');
       assert.equal((await ai(await login('A'), 'courseContent')).status, 403, 'switch OFF for content too');
     });
