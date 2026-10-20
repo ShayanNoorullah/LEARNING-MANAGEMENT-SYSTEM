@@ -67,6 +67,9 @@
     youtube: body => api('/youtube', body, 'POST', 20000),
     // { feature: 'courseGenerate' | 'courseContent', queries: [phrase] } -> { results: [[{ id, title, channel, duration }] | null] }
     videos: body => api('/videos', body, 'POST', 60000),
+    // { quizId, questionId, answer } -> { points, max, rationale, ai, token }: the server marks a short answer
+    // with the hidden answer key; the token lets the attempt keep the mark.
+    quizCheck: body => api('/quiz-check', { feature: 'quizCheck', ...body }, 'POST', 45000),
     // json: ask the provider for JSON mode. timeoutMs: give up waiting after that long. capability: use
     // another feature's provider settings (usage is still counted under `feature`). All are optional;
     // without them the request is exactly what it always was.

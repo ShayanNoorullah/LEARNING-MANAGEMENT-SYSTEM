@@ -13,6 +13,15 @@ const cfg = (() => { const w = {}; try { vm.runInNewContext(fs.readFileSync(path
 const SB_URL = process.env.SUPABASE_URL || cfg.url, SB_KEY = process.env.SUPABASE_ANON_KEY || cfg.anonKey;
 const READY = !!(SECRET && SB_URL && SB_KEY);
 const SIGN = crypto.createHash('sha256').update('sdc-session:' + SECRET).digest('hex');
+// Short-answer AI marks: signed by POST /api/ai/quiz-check (backend/ai-api.js), which reads the hidden answer
+// key, for one learner, quiz, question and answer. A learner's attempt keeps a mark only with a valid signature.
+const REVIEW_KEY = crypto.createHash('sha256').update('sdc-quiz-review:' + SECRET).digest('hex');
+const answerHash = a => crypto.createHash('sha256').update(String(a ?? '')).digest('base64url');
+const signReview = ({ uid, quizId, questionId, answer, points, rationale }) => jwt.sign({ typ: 'quizReview', uid, quizId, questionId, ah: answerHash(answer), points, rationale: String(rationale || '').slice(0, 500) }, REVIEW_KEY, { expiresIn: '2h' });
+function reviewOf(token, w) {
+  try { const p = jwt.verify(String(token || ''), REVIEW_KEY); return p.typ === 'quizReview' && p.uid === w.uid && p.quizId === w.quizId && p.questionId === w.questionId && p.ah === answerHash(w.answer) ? p : null; }
+  catch (e) { return null; }
+}
 
 async function rpc(fn, args) {
   const r = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_secret: SECRET, ...args }) });
@@ -480,8 +489,13 @@ function guardCourseData(prev, next, me, known, keptUsers = new Set()) {
       const used = attempts.get(q.id) ?? arr(prev, 'quizAttempts').filter(a => a?.quizId === q.id && a.learnerId === me.id && a.status === 'Submitted').length;
       if (Number(q.attemptLimit) > 0 && used >= Number(q.attemptLimit)) return false;
       attempts.set(q.id, used + 1);
-      const qs = (q.questionIds || []).map(id => questions.get(id)).filter(Boolean), reviews = { ...(isObj(n.aiReviews) ? n.aiReviews : {}) };
-      qs.filter(x => x.type === 'short').forEach(x => { const r = reviews[x.id]; if (isObj(r) && r.points != null) reviews[x.id] = { ...r, points: Math.min(Number(x.points) || 1, Math.max(0, Number(r.points) || 0)) }; });
+      // A short answer keeps an AI mark only when the server signed it for this exact answer; otherwise it waits
+      // for the instructor (a mark typed into the browser is never trusted).
+      const qs = (q.questionIds || []).map(id => questions.get(id)).filter(Boolean), sent = isObj(n.aiReviews) ? n.aiReviews : {}, reviews = {};
+      qs.filter(x => x.type === 'short').forEach(x => {
+        const ok = reviewOf(sent[x.id]?.token, { uid: me.id, quizId: q.id, questionId: x.id, answer: n.answers?.[x.id] });
+        reviews[x.id] = ok ? { points: Math.min(Number(x.points) || 1, Math.max(0, Number(ok.points) || 0)), rationale: ok.rationale, ai: true, token: sent[x.id].token } : { points: null, rationale: 'Pending instructor review', ai: false };
+      });
       const g = Rules.gradeAttempt(qs, n.answers, reviews);
       return { ...n, aiReviews: reviews, score: g.score, maxScore: g.maxScore, percent: g.percent, detail: g.detail, pendingShort: g.pending };
     },
@@ -718,6 +732,6 @@ router.get('/api/sdc/verify', wrap(async (req, res) => {
 router.get('/api/sdc/public', wrap(async (req, res) => { const { state } = await load(); res.json({ settings: state.settings || {} }); }));
 
 module.exports = router;
-module.exports._test = { applySave, merge, forClient, toClient,hashPassword, verify, migrate, guardCourseData, readKnown, same, rebuild, PROTECTED, pastDue, resetSafeWrite: () => { safe = { at: 0, ok: null }; } };
+module.exports._test = { signReview, applySave, merge, forClient, toClient,hashPassword, verify, migrate, guardCourseData, readKnown, same, rebuild, PROTECTED, pastDue, resetSafeWrite: () => { safe = { at: 0, ok: null }; } };
 // Shared with ai-api.js: the same secret-guarded storage and permission rules.
-module.exports.server = { READY, load, can, rpc, commit, roleOf, staffScope, findByEmail, verify, createDraft, listOf, same };
+module.exports.server = { READY, load, can, rpc, commit, signReview, roleOf, staffScope, findByEmail, verify, createDraft, listOf, same };

@@ -209,6 +209,14 @@ async function run(backend) {
       for (const k of ['courses', 'sessions', 'assignments', 'quizzes', 'questions']) assert.deepEqual(db[k], want[k], k + ': hidden records and staff data kept in the database');
       assert.deepEqual(db.progress.map(x => x.id), ['PRL']);
       assert.deepEqual((({ score, percent, pendingShort }) => ({ score, percent, pendingShort }))(db.quizAttempts.find(a => a.id === 'QAL')), { score: 1, percent: 33, pendingShort: true }, 'scored by the server');
+      // Short answers are marked on the server (the learner has no key): only for a short question of a quiz they may take.
+      const qc = (c, body) => callApi('POST', '/api/ai/quiz-check', { feature: 'quizCheck', quizId: 'QZ1', questionId: 'Q2', answer: 'my words', ...body }, c.token);
+      assert.deepEqual([(await qc(l)).status, (await qc(l)).body.code], [400, 'not_configured'], 'the learner passes every check and reaches the AI step (no provider here)');
+      assert.equal((await qc(l, { questionId: 'Q1' })).status, 403, 'only short questions');
+      assert.equal((await qc(l, { quizId: 'QZ9', questionId: 'Q9' })).status, 403, 'only quizzes of the own batch');
+      assert.equal((await qc(l, { answer: 'x'.repeat(4001) })).status, 400, 'answer size limit');
+      assert.equal((await qc(await login('T'))).status, 403, 'staff are not enrolled');
+      assert.equal((await callApi('POST', '/api/ai/quiz-check', { feature: 'quizCheck', quizId: 'QZ1', questionId: 'Q2', answer: 'x' })).status, 401, 'sign-in required');
       // Crafted question writes are still refused.
       const q = await push(l, s => { s.questions[0].options[1].correct = true; s.questions.push({ id: 'QEVIL', courseId: 'C1', type: 'short', stem: 'x' }); s.questions = s.questions.filter(x => x.id !== 'Q2'); });
       assert.deepEqual(q.body.rejected.map(x => `${x.id}:${x.op}`).sort(), ['Q1:edit', 'QEVIL:create']);

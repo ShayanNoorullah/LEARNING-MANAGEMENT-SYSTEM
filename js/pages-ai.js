@@ -171,9 +171,10 @@ function renderQuizAttempt(ctx, course, quiz) {
     });
     const aiReviews = {};
     for (const q of questions.filter(x => x.type === 'short')) {
-      // answerHidden: the server keeps the model answer from learners, so the instructor reviews this answer.
-      if (!feature('ai') || !Domain.aiEnabled() || q.answerHidden) continue;
+      if (!feature('ai') || !Domain.aiEnabled()) continue;
       try {
+        // answerHidden: learners never receive the model answer, so the server marks the answer and signs the mark.
+        if (q.answerHidden) { const r = await SDCAI.quizCheck({ quizId: quiz.id, questionId: q.id, answer: answers[q.id] }); aiReviews[q.id] = { points: r.points, rationale: r.rationale, ai: true, token: r.token }; continue; }
         const out = await SDCAI.call('quizCheck', {
           system: 'Score a short answer. Return JSON {"points":number,"max":number,"rationale":"..."}. points between 0 and max.',
           prompt: `Max points: ${q.points || 1}\nModel answer: ${q.modelAnswer || ''}\nKeywords: ${(q.keywords || []).join(', ')}\nLearner answer: ${answers[q.id]}`

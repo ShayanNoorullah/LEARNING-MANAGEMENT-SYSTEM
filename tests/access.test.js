@@ -93,12 +93,22 @@ const nothingFor = (r, why) => assert.deepEqual(r.state, (() => { const s = stat
   r = save('L', s => { Object.assign(rec(s, 'submissions', 'SB1'), { fileName: 'late.pdf', status: 'Submitted', grade: null }); }, { prev: graded });
   assert.deepEqual(r.rej, ['submissions:SB1:edit'], 'no replacing after grading');
 
-  // Quiz attempts are scored here: a forged score is replaced, AI points are capped, the limit holds.
-  r = save('L', s => { s.quizAttempts.push({ id: 'QN', quizId: 'QZ1', courseId: 'C1', learnerId: 'L', answers: { Q1: 'b', Q2: 'text' }, aiReviews: { Q2: { points: 99, ai: true } }, score: 3, maxScore: 3, percent: 100, status: 'Submitted', pendingShort: false }); });
-  const qn = r.find('quizAttempts', 'QN');
-  assert.deepEqual([r.rej, qn.score, qn.maxScore, qn.percent, qn.aiReviews.Q2.points, r.resync], [[], 2, 3, 67, 2, true], 'score recomputed from the answer key');
-  const honest = state(), browserGrade = Rules.gradeAttempt(['Q1', 'Q2'].map(id => rec(honest, 'questions', id)), { Q1: 'a' }, { Q2: { points: 1, ai: true } });
-  r = save('L', s => { s.quizAttempts.push({ id: 'QH', quizId: 'QZ1', courseId: 'C1', learnerId: 'L', answers: { Q1: 'a' }, aiReviews: { Q2: { points: 1, ai: true } }, ...browserGrade, pendingShort: browserGrade.pending, status: 'Submitted' }); delete s.quizAttempts.at(-1).pending; });
+  // Quiz attempts are scored here: a forged score is replaced, an AI mark counts only when the server signed it
+  // (POST /api/ai/quiz-check) for this learner, quiz, question and answer, AI points are capped, the limit holds.
+  const attempt = (id, answers, aiReviews) => s => { s.quizAttempts.push({ id, quizId: 'QZ1', courseId: 'C1', learnerId: 'L', answers, aiReviews, score: 3, maxScore: 3, percent: 100, status: 'Submitted', pendingShort: false }); };
+  r = save('L', attempt('QN', { Q1: 'b', Q2: 'text' }, { Q2: { points: 99, ai: true } }));
+  let qn = r.find('quizAttempts', 'QN');
+  assert.deepEqual([r.rej, qn.score, qn.maxScore, qn.percent, qn.aiReviews.Q2.points, qn.pendingShort, r.resync], [[], 0, 3, 0, null, true, true], 'a mark typed into the browser is ignored: the answer waits for the instructor');
+  const signed = (answer, over = {}) => T.signReview({ uid: 'L', quizId: 'QZ1', questionId: 'Q2', answer, points: 99, rationale: 'Good', ...over });
+  r = save('L', attempt('QN', { Q1: 'b', Q2: 'text' }, { Q2: { points: 99, ai: true, token: signed('text') } }));
+  qn = r.find('quizAttempts', 'QN');
+  assert.deepEqual([qn.score, qn.percent, qn.aiReviews.Q2.points, qn.aiReviews.Q2.rationale, qn.pendingShort], [2, 67, 2, 'Good', false], 'a signed mark counts, capped at the question points');
+  for (const [why, token] of [['another answer', signed('other text')], ['another learner', signed('text', { uid: 'L2' })], ['another question', signed('text', { questionId: 'Q1' })], ['a forged signature', signed('text').slice(0, -3) + 'abc']]) {
+    qn = save('L', attempt('QN', { Q1: 'b', Q2: 'text' }, { Q2: { points: 2, ai: true, token } })).find('quizAttempts', 'QN');
+    assert.deepEqual([qn.aiReviews.Q2.points, qn.pendingShort], [null, true], 'a signature for ' + why + ' is refused');
+  }
+  const honest = state(), review = { points: 1, rationale: 'Good', ai: true, token: signed(undefined, { points: 1 }) }, browserGrade = Rules.gradeAttempt(['Q1', 'Q2'].map(id => rec(honest, 'questions', id)), { Q1: 'a' }, { Q2: review });
+  r = save('L', s => { s.quizAttempts.push({ id: 'QH', quizId: 'QZ1', courseId: 'C1', learnerId: 'L', answers: { Q1: 'a' }, aiReviews: { Q2: review }, ...browserGrade, pendingShort: browserGrade.pending, status: 'Submitted' }); delete s.quizAttempts.at(-1).pending; });
   assert.deepEqual([r.rej, r.resync], [[], false], 'an honest attempt (scored like the browser) is saved unchanged');
   r = save('L', s => { s.quizAttempts.push({ id: 'Q1a', quizId: 'QZ1', courseId: 'C1', learnerId: 'L', answers: {}, status: 'Submitted' }, { id: 'Q1b', quizId: 'QZ1', courseId: 'C1', learnerId: 'L', answers: {}, status: 'Submitted' }, { id: 'Q2a', quizId: 'QZ2', courseId: 'C2', learnerId: 'L', answers: {}, status: 'Submitted' }); });
   assert.deepEqual(r.rej, ['quizAttempts:Q1b:create', 'quizAttempts:Q2a:create'], 'attempt limit (also within one save); only quizzes of your batch');
