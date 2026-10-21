@@ -1092,3 +1092,26 @@ body, .sidebar, .topbar, .card, .stat, .course-card, .session-row, .input { tran
 .sync-conf { display: flex; flex-wrap: wrap; gap: 8px 14px; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); }
 .sync-conf-btns { display: flex; gap: 8px; }
 @media print { .sync-banner, .sync-chip { display: none !important; } }
+
+/* Settings: grouped forms, unsaved-changes note, YouTube card, feature map on phones */
+.form-section { margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--border); }
+.form-grid > .form-section:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.form-section h3 { margin: 0 0 2px; font-size: 1rem; }
+.form-section .help { margin: 0; }
+.form-foot { flex-wrap: wrap; align-items: center; }
+.dirty-note { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; color: var(--warning); font-size: .85rem; font-weight: 600; }
+.form-foot > .grow { margin-right: auto; }
+.switch.nowrap { white-space: nowrap; }
+.field.is-off { opacity: .55; }
+.yt-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin-top: 12px; }
+.yt-row > .field { flex: 1 1 280px; margin: 0; }
+.yt-row > .row { padding-bottom: 2px; }
+.yt-help { margin-top: 12px; }
+.yt-help summary { cursor: pointer; color: var(--primary); font-weight: 600; width: fit-content; }
+.yt-help ol { margin: 8px 0 6px; padding-left: 20px; display: grid; gap: 4px; }
+@media (max-width: 720px) {
+  .cap-table td[data-label] { align-items: center; }
+  .cap-table td[data-label] > .input { flex: 1 1 auto; min-width: 0; max-width: 70%; text-align: left; }
+  .cap-table td.td-primary { padding-top: 4px; }
+}
+.weights-share { grid-column: 1 / -1; margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); color: var(--text); }

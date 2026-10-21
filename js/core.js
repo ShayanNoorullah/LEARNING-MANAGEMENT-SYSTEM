@@ -736,6 +736,7 @@ function optionList(opts) {
   return list.map(o => typeof o === 'object' ? o : { value: o, label: o });
 }
 function fieldHTML(f, values = {}) {
+  if (f.type === 'heading') return `<div class="field full form-section"><h3>${esc(f.label)}</h3>${f.help ? `<p class="help">${esc(f.help)}</p>` : ''}</div>`;
   const v = values[f.name] ?? f.value ?? (f.type === 'checkbox' ? false : '');
   const id = `f_${f.name}_${Math.random().toString(36).slice(2, 6)}`;
   const req = f.required ? 'required' : '';
@@ -760,7 +761,7 @@ function fieldHTML(f, values = {}) {
 function formHTML(fields, values = {}) { return `<div class="form-grid">${fields.filter(f => !f.hidden).map(f => fieldHTML(f, values)).join('')}</div>`; }
 function readForm(form, fields) {
   const out = {};
-  fields.filter(f => !f.hidden).forEach(f => {
+  fields.filter(f => !f.hidden && f.type !== 'heading').forEach(f => {
     if (f.type === 'multiselect') { out[f.name] = [...form.querySelectorAll(`[data-multi="${f.name}"] input:checked`)].map(i => i.value); return; }
     const el = form.elements[f.name]; if (!el) return;
     if (f.type === 'checkbox') out[f.name] = el.checked;
