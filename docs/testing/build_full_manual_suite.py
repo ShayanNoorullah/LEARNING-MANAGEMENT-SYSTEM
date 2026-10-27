@@ -102,7 +102,11 @@ SHEETS = {
  ('SET-04', 'Feature switches', M, A, '', 'Flip Calendar off and on', 'Saves instantly with a toast; menu item hides/returns'),
  ('SET-05', 'Sign-in tab', S, A, '', 'Check provider status; copy redirect URL', 'Shows whether Google is enabled; URL copies'),
  ('SET-06', 'Backup and restore', M, A, '', 'Download backup; change something; restore the file', 'Data returns to the backup; backup has no AI keys'),
- ('SET-07', 'Reset demo data', S, A, 'Not on live data', 'Data → Reset demo data → confirm', 'Demo catalogue (incl. sample quiz) restored'),
+ ('SET-07', 'Reset demo data', S, A, 'Not on live data', 'Data → Reset to demo data → type RESET → Reset all data', 'Button stays disabled until RESET is typed; demo catalogue (incl. sample quiz) restored'),
+ ('SET-08', 'Unsaved changes', S, A, '', 'Edit a field on Learning; click another tab; Cancel; then Save', '"Unsaved changes" shows by the Save button; leaving asks first; Cancel keeps the edit'),
+ ('SET-09', 'One AI switch', M, A, '', 'Turn SDC Learn AI off in Features; open Integrations; turn it on there; back to Features', 'Both places show the same state; AI feature switches are greyed out while AI is off'),
+ ('SET-10', 'Result weight shares', S, A, '', 'Learning → change a weight', 'The line under the weights shows the real share of each part of the final result'),
+ ('SET-11', 'Settings on a phone', N, A, '375 px wide', 'Open each Settings tab, including Integrations', 'Open tab visible in the tab bar; no sideways scrolling; feature map shows Provider and Model labels'),
 ],
 '07 Quizzes': [
  ('QZ-01', 'Build a quiz', M, I, 'Batch workspace', 'New quiz: MCQ (3 options), True/False, Short answer; save', 'Draft saved with the right types'),

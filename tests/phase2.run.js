@@ -260,7 +260,7 @@ const supa = http.createServer((req, res) => {
   await tc('NFR-05', async () => 'LMS stays usable while the tutor waits (calls are async and the drawer does not block navigation); timing with a slow provider not simulated.');
 
   /* ---------------- reset seeds sample quiz ---------------- */
-  await tc('ADM-13', async () => { await boot('u-admin', '#/settings?tab=data'); await p.click('[data-reset]'); await W(200); await Promise.all([p.click('.modal [data-ok]'), p.waitForNavigation({ waitUntil: 'networkidle0' })]); check(await p.evaluate(() => { invalidateCache(); return db().quizzes.some(q => q.id === 'QZ-EX-1') && !db().quizAttempts.length; }), 'seed quiz missing after reset'); });
+  await tc('ADM-13', async () => { await boot('u-admin', '#/settings?tab=data'); await p.click('[data-reset]'); await W(200); await p.type('#reset-confirm', 'RESET'); await Promise.all([p.click('.modal [data-go]'), p.waitForNavigation({ waitUntil: 'networkidle0' })]); check(await p.evaluate(() => { invalidateCache(); return db().quizzes.some(q => q.id === 'QZ-EX-1') && !db().quizAttempts.length; }), 'seed quiz missing after reset'); });
 
   console.log(JSON.stringify({ results: out, pageErrors: [...new Set(errors)] }, null, 1));
   await b.close(); srv.close(); mock.close(); supa.close();

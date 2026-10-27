@@ -144,7 +144,7 @@ const check = (c, m) => { if (!c) throw new Error(m); };
     await p.evaluate(() => { sessionStorage.setItem('sdcSession', 'u-admin'); addRecord('programs', { name: 'Should vanish', code: 'ZZ' }); });
     await p.goto(base + '/app.html#/settings?tab=data', { waitUntil: 'networkidle0' }); await W(300);
     await p.click('[data-reset]'); await W(200);
-    await Promise.all([p.click('.modal [data-ok]'), p.waitForNavigation({ waitUntil: 'networkidle0' })]); await W(300);
+    await p.type('#reset-confirm', 'RESET'); await Promise.all([p.click('.modal [data-go]'), p.waitForNavigation({ waitUntil: 'networkidle0' })]); await W(300);
     check(await p.evaluate(() => { invalidateCache(); return !db().programs.some(x => x.code === 'ZZ') && db().users.length === SEED.users.length; }), 'not reset to seed');
   });
   console.log(JSON.stringify({ results: out, pageErrors: [...new Set(errors)] }, null, 1));
